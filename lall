@@ -1,0 +1,281 @@
+#!/usr/bin/env ruby
+# --- lall.rb ---
+require 'yaml'
+require 'optparse'
+require 'open3'
+require 'thread'
+
+# --- ENVIRONMENT GROUPS ---
+ENV_GROUPS = {
+  'staging' => %w[staging staging-s2 staging-s3],
+  'prod-us' => %w[prod prod-s2 prod-s3 prod-s4 prod-s5 prod-s6 prod-s7 prod-s8 prod-s9],
+  'prod-all' => %w[prod prod-s2 prod-s3 prod-s4 prod-s5 prod-s6 prod-s7 prod-s8 prod-s9 prod-s201 prod-s101],
+}
+
+# --- LotusRunner: Handles lotus command execution ---
+class LotusRunner
+  def self.fetch_yaml(env)
+    s_arg, r_arg = get_lotus_args(env)
+    lotus_cmd = "lotus view -s \\#{s_arg} -e \\#{env} -a greenhouse -G"
+    lotus_cmd += " -r \\#{r_arg}" if r_arg
+    yaml_output = nil
+    Open3.popen3(lotus_cmd) do |stdin, stdout, stderr, wait_thr|
+      yaml_output = stdout.read
+      unless wait_thr.value.success?
+        warn "Failed to run lotus command for env '#{env}': \\#{stderr.read}"
+        return nil
+      end
+    end
+    YAML.safe_load(yaml_output)
+  end
+
+  def self.get_lotus_args(env)
+    s_arg = if env.start_with?('prod') || env.start_with?('staging')
+      'prod'
+    else
+      env
+    end
+    r_arg = nil
+    if env =~ /s(\\d+)$/
+      num = $1.to_i
+      if num >= 1 && num <= 99
+        r_arg = 'use1'
+      elsif num >= 101 && num <= 199
+        r_arg = 'euc1'
+      elsif num >= 201 && num <= 299
+        r_arg = 'apse2'
+      end
+    end
+    [s_arg, r_arg]
+  end
+end
+
+# --- KeySearcher: Recursively searches YAML keys ---
+class KeySearcher
+  def self.search(obj, search_str, path = [], results = [], insensitive = false)
+    case obj
+    when Hash
+      obj.each do |k, v|
+        key_str = k.to_s
+        match = insensitive ? key_str.downcase.include?(search_str.downcase) : key_str.include?(search_str)
+        if match
+          results << { path: (path + [k]).join('.'), key: k, value: v }
+        end
+        search(v, search_str, path + [k], results, insensitive)
+      end
+    when Array
+      obj.each_with_index do |v, i|
+        search(v, search_str, path + [i], results, insensitive)
+      end
+    end
+    results
+  end
+end
+
+# --- TableFormatter: Handles all table formatting logic ---
+class TableFormatter
+  def initialize(columns, envs, env_results, options)
+    @columns = columns
+    @envs = envs
+    @env_results = env_results
+    @options = options
+    @truncate = options[:truncate]
+    @path_also = options[:path_also]
+    @env_width = ["Env".length, *envs.map(&:length)].max
+  end
+
+  def compute_col_widths
+    if @path_also
+      @columns.map do |col|
+        header_str = "#{col[:path]}.#{col[:key]}"
+        max_data = @envs.map do |env|
+          match = @env_results[env].find { |r| r[:path] == col[:path] && r[:key] == col[:key] }
+          value_str = match ? (match[:value].is_a?(String) ? match[:value] : match[:value].inspect) : ""
+          trunc_len = @truncate ? [@truncate, header_str.length].max : nil
+          trunc_len ? [header_str.length, TableFormatter.truncate_middle(value_str, trunc_len).length].max : [header_str.length, value_str.length].max
+        end.max
+        [header_str.length, max_data].max
+      end
+    else
+      @columns.map do |k|
+        header_str = k.to_s
+        max_data = @envs.map do |env|
+          match = @env_results[env].find { |r| r[:key] == k }
+          value_str = match ? (match[:value].is_a?(String) ? match[:value] : match[:value].inspect) : ""
+          trunc_len = @truncate ? [@truncate, header_str.length].max : nil
+          trunc_len ? [header_str.length, TableFormatter.truncate_middle(value_str, trunc_len).length].max : [header_str.length, value_str.length].max
+        end.max
+        [header_str.length, max_data].max
+      end
+    end
+  end
+
+  def self.truncate_middle(str, max_len)
+    return str if str.length <= max_len
+    return str if max_len < 5
+    half = (max_len - 3) / 2
+    first = str[0, half]
+    last = str[-half, half]
+    "#{first}...#{last}"
+  end
+
+  def build_header(col_widths)
+    header = "| %-#{@env_width}s |" % "Env"
+    if @path_also
+      @columns.each_with_index do |col, i|
+        header += " %-#{col_widths[i]}s |" % ["#{col[:path]}.#{col[:key]}"]
+      end
+    else
+      @columns.each_with_index do |k, i|
+        header += " %-#{col_widths[i]}s |" % [k.to_s]
+      end
+    end
+    header
+  end
+
+  def print_table
+    col_widths = compute_col_widths
+    puts build_header(col_widths)
+    sep = "|-#{'-' * @env_width}-|"
+    @columns.each_with_index { |_, i| sep += "-#{'-' * col_widths[i]}-|" }
+    puts sep
+    @envs.each do |env|
+      row = "| %-#{@env_width}s |" % env
+      if @path_also
+        @columns.each_with_index do |col, i|
+          match = @env_results[env].find { |r| r[:path] == col[:path] && r[:key] == col[:key] }
+          value_str = match ? (match[:value].is_a?(String) ? match[:value] : match[:value].inspect) : ""
+          value_str = @truncate ? TableFormatter.truncate_middle(value_str, col_widths[i]) : value_str
+          row += " %-#{col_widths[i]}s |" % value_str
+        end
+      else
+        @columns.each_with_index do |k, i|
+          match = @env_results[env].find { |r| r[:key] == k }
+          value_str = match ? (match[:value].is_a?(String) ? match[:value] : match[:value].inspect) : ""
+          value_str = @truncate ? TableFormatter.truncate_middle(value_str, col_widths[i]) : value_str
+          row += " %-#{col_widths[i]}s |" % value_str
+        end
+      end
+      puts row
+    end
+  end
+end
+
+# --- CLI: Handles argument parsing and main logic ---
+class LallCLI
+  def initialize(argv)
+    @options = {}
+    OptionParser.new do |opts|
+      opts.banner = "Usage: ruby lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [-p] [-i] [-v]"
+      opts.on('-sSTRING', '--string=STRING', 'String to search for in YAML keys (required)') { |v| @options[:string] = v }
+      opts.on('-eENV', '--env=ENV', 'Comma-separated environment(s) to search, e.g., prod,stage (mutually exclusive with -g)') { |v| @options[:env] = v }
+      opts.on('-gGROUP', '--group=GROUP', 'Group name to use a related list of environments (mutually exclusive with -e)') { |v| @options[:group] = v }
+      opts.on('-p', '--path', 'Include the path column in the output table (optional)') { @options[:path_also] = true }
+      opts.on('-i', '--insensitive', 'Case-insensitive key search (optional)') { @options[:insensitive] = true }
+      opts.on('-v', '--pivot', 'Pivot the table so environments are rows and keys/paths are columns (optional)') { @options[:pivot] = true }
+      opts.on('-t[LEN]', '--truncate[=LEN]', Integer, 'Truncate output values longer than LEN (default 40) with ellipsis in the middle') do |v|
+        @options[:truncate] = v.nil? ? 40 : v
+      end
+    end.parse!(argv)
+  end
+
+  def run
+    if @options[:string].nil? || (@options[:env].nil? && @options[:group].nil?) || (@options[:env] && @options[:group])
+      puts "Usage: ruby lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [-p]"
+      puts "  -e and -g are mutually exclusive and one is required."
+      exit 1
+    end
+    envs = if @options[:group]
+      ENV_GROUPS[@options[:group]] || (puts("Unknown group: \\#{@options[:group]}"); exit 1)
+    else
+      @options[:env].split(',').map(&:strip)
+    end
+    env_results = fetch_env_results(envs)
+    all_keys = env_results.values.flatten.map { |r| r[:key] }.uniq
+    all_paths = env_results.values.flatten.map { |r| r[:path] }.uniq
+    if all_keys.empty?
+      puts "No keys found containing '#{@options[:string]}'."
+      return
+    end
+    if @options[:pivot]
+      columns = all_keys
+      columns = all_paths.product(all_keys).map { |p, k| { path: p, key: k } } if @options[:path_also]
+      TableFormatter.new(columns, envs, env_results, @options).print_table
+    elsif @options[:path_also]
+      # Comparative table: Path | Key | ENV1 | ENV2 | ...
+      path_width = ["Path".length, *all_paths.map(&:length)].max
+      key_width = ["Key".length, *all_keys.map(&:length)].max
+      env_widths = envs.map { |env| [env.length, *env_results[env].map { |r| (r[:value].is_a?(String) ? r[:value] : r[:value].inspect).length }].max }
+
+      # Header
+      header = "| %-#{path_width}s | %-#{key_width}s |" % ["Path", "Key"]
+      envs.each_with_index { |env, i| header += " %-#{env_widths[i]}s |" % env }
+      puts header
+      sep = "|-#{'-' * path_width}-|-#{'-' * key_width}-|"
+      envs.each_with_index { |_, i| sep += "-#{'-' * env_widths[i]}-|" }
+      puts sep
+
+      all_paths.each do |path|
+        all_keys.each do |key|
+          row = "| %-#{path_width}s | %-#{key_width}s |" % [path, key]
+          envs.each_with_index do |env, i|
+            match = env_results[env].find { |r| r[:path] == path && r[:key] == key }
+            value_str = match ? (match[:value].is_a?(String) ? match[:value] : match[:value].inspect) : ""
+            value_str = truncate ? truncate_middle(value_str, truncate) : value_str
+            row += " %-#{env_widths[i]}s |" % value_str
+          end
+          # Only print rows where at least one env has a value
+          unless envs.all? { |env| env_results[env].none? { |r| r[:path] == path && r[:key] == key } }
+            puts row
+          end
+        end
+      end
+    else
+      # Comparative table: Key | ENV1 | ENV2 | ...
+      key_width = ["Key".length, *all_keys.map(&:length)].max
+      env_widths = envs.map { |env| [env.length, *env_results[env].map { |r| (r[:value].is_a?(String) ? r[:value] : r[:value].inspect).length }].max }
+
+      # Header
+      header = "| %-#{key_width}s |" % ["Key"]
+      envs.each_with_index { |env, i| header += " %-#{env_widths[i]}s |" % env }
+      puts header
+      sep = "|-#{'-' * key_width}-|"
+      envs.each_with_index { |_, i| sep += "-#{'-' * env_widths[i]}-|" }
+      puts sep
+
+      all_keys.each do |key|
+        row = "| %-#{key_width}s |" % [key]
+        envs.each_with_index do |env, i|
+          match = env_results[env].find { |r| r[:key] == key }
+          value_str = match ? (match[:value].is_a?(String) ? match[:value] : match[:value].inspect) : ""
+          value_str = truncate ? truncate_middle(value_str, truncate) : value_str
+          row += " %-#{env_widths[i]}s |" % value_str
+        end
+        # Only print rows where at least one env has a value
+        unless envs.all? { |env| env_results[env].none? { |r| r[:key] == key } }
+          puts row
+        end
+      end
+    end
+  end
+
+  def fetch_env_results(envs)
+    env_results = {}
+    mutex = Mutex.new
+    threads = []
+    envs.each do |env|
+      threads << Thread.new do
+        yaml_data = LotusRunner.fetch_yaml(env)
+        result = KeySearcher.search(yaml_data, @options[:string], [], [], @options[:insensitive])
+        mutex.synchronize { env_results[env] = result }
+      end
+    end
+    threads.each(&:join)
+    env_results
+  end
+end
+
+# --- Main entry point ---
+if $0 == __FILE__
+  LallCLI.new(ARGV).run
+end

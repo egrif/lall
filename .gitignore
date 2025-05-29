@@ -1,0 +1,22 @@
+# Ignore bundler config, local gems, logs, temp files, and system files
+/.bundle/
+/vendor/
+/log/
+/tmp/*
+*.gem
+*.swp
+*.swo
+.DS_Store
+*.log
+coverage/
+.byebug_history
+pry_history
+.env
+.env.*
+# Ignore RubyMine/JetBrains IDE files
+.idea/
+# Ignore VSCode settings
+.vscode/
+# Ignore OS junk
+Thumbs.db
+

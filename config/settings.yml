@@ -1,0 +1,28 @@
+# config/settings.yml
+groups:
+  staging:
+    - staging
+    - staging-s2
+    - staging-s3
+  prod-us:
+    - prod
+    - prod-s2
+    - prod-s3
+    - prod-s4
+    - prod-s5
+    - prod-s6
+    - prod-s7
+    - prod-s8
+    - prod-s9
+  prod-all:
+    - prod
+    - prod-s2
+    - prod-s3
+    - prod-s4
+    - prod-s5
+    - prod-s6
+    - prod-s7
+    - prod-s8
+    - prod-s9
+    - prod-s201
+    - prod-s101

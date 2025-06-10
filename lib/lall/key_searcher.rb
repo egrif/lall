@@ -13,7 +13,11 @@ class KeySearcher
       end
     when Array
       obj.each_with_index do |v, i|
-        search(v, search_str, path + [i], results, insensitive)
+        key_str = v.to_s
+        match = insensitive ? key_str.downcase.include?(search_str.downcase) : key_str.include?(search_str)
+        if match
+          results << { path: (path + [i]).join('.'), key: v, value: "{SECRET}" }
+        end
       end
     end
     results

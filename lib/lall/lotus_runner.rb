@@ -37,4 +37,30 @@ class LotusRunner
     end
     [s_arg, r_arg]
   end
+
+  def self.secret_get(env, secret_key)
+    s_arg, r_arg = get_lotus_args(env)
+    lotus_cmd = "lotus secret get #{secret_key} -s \\#{s_arg} -e \\#{env} -a greenhouse "
+    lotus_cmd += " -r \\#{r_arg}" if r_arg
+    secret_output = nil
+    Open3.popen3(lotus_cmd) do |stdin, stdout, stderr, wait_thr|
+      secret_output = stdout.read
+      unless wait_thr.value.success?
+        warn "Failed to run lotus secret get for env '#{env}', key '#{secret_key}': \\#{stderr.read}"
+        return nil
+      end
+    end
+    # Expect output like KEY=value, return just the value
+    if secret_output =~ /^\\s*\\w+\\s*=\\s*(.*)$/
+      $1.strip
+    else
+      secret_output.strip
+    end
+  end
+
+  def self.ping(env)
+    s_arg, r_arg = get_lotus_args(env)
+    ping_cmd = "lotus ping -s \\#{s_arg} "
+    system(ping_cmd)
+  end
 end

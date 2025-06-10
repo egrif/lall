@@ -23,6 +23,7 @@ class LallCLI
       opts.on('-t[LEN]', '--truncate[=LEN]', Integer, 'Truncate output values longer than LEN (default 40) with ellipsis in the middle') do |v|
         @options[:truncate] = v.nil? ? 40 : v
       end
+      opts.on('-x', '--expose', 'Expose secrets (show actual secret values for secrets/group_secrets keys)') { @options[:expose] = true }
     end.parse!(argv)
   end
 
@@ -37,6 +38,9 @@ class LallCLI
     else
       @options[:env].split(',').map(&:strip)
     end
+    # Ping each unique -s value before fetching results
+    s_args = envs.map { |env| LotusRunner.get_lotus_args(env).first }.uniq
+    s_args.each { |s_arg| LotusRunner.ping(s_arg) }
     env_results = fetch_env_results(envs)
     all_keys = env_results.values.flatten.map { |r| r[:key] }.uniq
     all_paths = env_results.values.flatten.map { |r| r[:path] }.uniq
@@ -62,7 +66,15 @@ class LallCLI
     envs.each do |env|
       threads << Thread.new do
         yaml_data = LotusRunner.fetch_yaml(env)
-        result = KeySearcher.search(yaml_data, @options[:string], [], [], @options[:insensitive])
+        result = KeySearcher.search(
+          yaml_data,
+          @options[:string],
+          [],
+          [],
+          @options[:insensitive],
+          env: env,
+          expose: @options[:expose]
+        )
         mutex.synchronize { env_results[env] = result }
       end
     end

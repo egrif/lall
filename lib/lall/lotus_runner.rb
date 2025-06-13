@@ -72,7 +72,7 @@ class LotusRunner
   end
 
   def self.ping(env)
-    s_arg, r_arg = get_lotus_args(env)
+    s_arg,  = get_lotus_args(env)
     ping_cmd = "lotus ping -s \\#{s_arg} > /dev/null 2>&1"
     system(ping_cmd)
   end

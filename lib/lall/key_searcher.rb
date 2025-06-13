@@ -9,21 +9,14 @@ class KeySearcher
     end
   end
 
-  def self.handle_secret_match(results, secret_jobs, path, key, value, expose, env)
+  def self.handle_secret_match(results, secret_jobs, path, key, value, expose, env, idx: nil)
+    match_path = (path + [(idx.nil? ? key : idx)]).join('.')
     if expose && (path.include?('secrets') || path.include?('group_secrets')) && env
-      secret_jobs << { env: env, key: key, path: (path + [key]).join('.'), k: key }
-      results << { path: (path + [key]).join('.'), key: key, value: :__PENDING_SECRET__ }
+      secret_jobs << { env: env, key: key, path: match_path, k: key }
+      results << { path: match_path, key: key, value: :__PENDING_SECRET__ }
     else
-      results << { path: (path + [key]).join('.'), key: key, value: value }
-    end
-  end
-
-  def self.handle_array_secret_match(results, secret_jobs, path, idx, key, expose, env)
-    if expose && (path.include?('secrets') || path.include?('group_secrets')) && env
-      secret_jobs << { env: env, key: key, path: (path + [idx]).join('.'), k: key }
-      results << { path: (path + [idx]).join('.'), key: key, value: :__PENDING_SECRET__ }
-    else
-      results << { path: (path + [idx]).join('.'), key: key, value: '{SECRET}' }
+      # For arrays, value should be '{SECRET}', for hashes, it's the actual value
+      results << { path: match_path, key: key, value: value }
     end
   end
 
@@ -42,7 +35,7 @@ class KeySearcher
       obj.each_with_index do |v, i|
         key_str = v.to_s
         if match_key?(key_str, search_str)
-          handle_array_secret_match(results, secret_jobs, path, i, v, expose, env)
+          handle_secret_match(results, secret_jobs, path, v, '{SECRET}', expose, env, idx: i)
         end
       end
     end

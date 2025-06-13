@@ -58,9 +58,22 @@ class LotusRunner
     end
   end
 
+  # Fetch multiple secrets in parallel for a given env. Returns a hash {secret_key => value}
+  def self.secret_get_many(env, secret_keys)
+    results = {}
+    threads = secret_keys.map do |key|
+      Thread.new do
+        value = secret_get(env, key)
+        results[key] = value
+      end
+    end
+    threads.each(&:join)
+    results
+  end
+
   def self.ping(env)
     s_arg, r_arg = get_lotus_args(env)
-    ping_cmd = "lotus ping -s \\#{s_arg} "
+    ping_cmd = "lotus ping -s \\#{s_arg} > /dev/null 2>&1"
     system(ping_cmd)
   end
 end

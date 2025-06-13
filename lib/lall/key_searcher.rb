@@ -1,34 +1,48 @@
 # lib/lall/key_searcher.rb
 class KeySearcher
+  def self.match_key?(key_str, search_str)
+    if search_str.include?("*")
+      regex = Regexp.new('^' + Regexp.escape(search_str).gsub('\\*', '.*') + '$')
+      regex.match?(key_str)
+    else
+      key_str == search_str
+    end
+  end
+
+  def self.handle_secret_match(results, secret_jobs, path, key, value, expose, env)
+    if expose && (path.include?('secrets') || path.include?('group_secrets')) && env
+      secret_jobs << { env: env, key: key, path: (path + [key]).join('.'), k: key }
+      results << { path: (path + [key]).join('.'), key: key, value: :__PENDING_SECRET__ }
+    else
+      results << { path: (path + [key]).join('.'), key: key, value: value }
+    end
+  end
+
+  def self.handle_array_secret_match(results, secret_jobs, path, idx, key, expose, env)
+    if expose && (path.include?('secrets') || path.include?('group_secrets')) && env
+      secret_jobs << { env: env, key: key, path: (path + [idx]).join('.'), k: key }
+      results << { path: (path + [idx]).join('.'), key: key, value: :__PENDING_SECRET__ }
+    else
+      results << { path: (path + [idx]).join('.'), key: key, value: '{SECRET}' }
+    end
+  end
+
   def self.search(obj, search_str, path = [], results = [], insensitive = false, env: nil, expose: false)
     secret_jobs = []
     case obj
     when Hash
       obj.each do |k, v|
         key_str = k.to_s
-        match = insensitive ? key_str.downcase.include?(search_str.downcase) : key_str.include?(search_str)
-        if match
-          if expose && (path.include?('secrets') || path.include?('group_secrets')) && env
-            # Instead of fetching here, queue a job for later
-            secret_jobs << { env: env, key: k, path: (path + [k]).join('.'), k: k }
-            results << { path: (path + [k]).join('.'), key: k, value: :__PENDING_SECRET__ }
-          else
-            results << { path: (path + [k]).join('.'), key: k, value: v }
-          end
+        if match_key?(key_str, search_str)
+          handle_secret_match(results, secret_jobs, path, k, v, expose, env)
         end
         search(v, search_str, path + [k], results, insensitive, env: env, expose: expose)
       end
     when Array
       obj.each_with_index do |v, i|
         key_str = v.to_s
-        match = insensitive ? key_str.downcase.include?(search_str.downcase) : key_str.include?(search_str)
-        if match
-          if expose && (path.include?('secrets') || path.include?('group_secrets')) && env
-            secret_jobs << { env: env, key: v, path: (path + [i]).join('.'), k: v }
-            results << { path: (path + [i]).join('.'), key: v, value: :__PENDING_SECRET__ }
-          else
-            results << { path: (path + [i]).join('.'), key: v, value: '{SECRET}' }
-          end
+        if match_key?(key_str, search_str)
+          handle_array_secret_match(results, secret_jobs, path, i, v, expose, env)
         end
       end
     end

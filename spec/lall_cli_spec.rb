@@ -3,10 +3,9 @@
 require 'spec_helper'
 
 RSpec.describe LallCLI do
-  let(:settings_path) { '/Users/eric.griffith/dev/lall/test/fixtures/test_settings.yml' }
-
   before do
     # Stub the settings constant to use test fixtures
+    settings_path = File.join(__dir__, '..', 'test', 'fixtures', 'test_settings.yml')
     stub_const('SETTINGS_PATH', settings_path)
     stub_const('SETTINGS', YAML.load_file(settings_path))
     stub_const('ENV_GROUPS', YAML.load_file(settings_path)['groups'])

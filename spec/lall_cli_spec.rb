@@ -152,10 +152,11 @@ RSpec.describe LallCLI do
       end
 
       it 'processes environment list from -g option' do
-        cli = LallCLI.new(['-s', 'api_token', '-g', 'test', '--no-cache'])
+        cli = LallCLI.new(['-s', 'api_token', '-g', 'staging', '--no-cache'])
 
-        expect(Lotus::Runner).to receive(:fetch_yaml).with('test-env1')
-        expect(Lotus::Runner).to receive(:fetch_yaml).with('test-env2')
+        expect(Lotus::Runner).to receive(:fetch_yaml).with('staging')
+        expect(Lotus::Runner).to receive(:fetch_yaml).with('staging-s2')
+        expect(Lotus::Runner).to receive(:fetch_yaml).with('staging-s3')
         expect { cli.run }.to output(/api_token/).to_stdout
       end
 

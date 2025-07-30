@@ -1,8 +1,10 @@
 # frozen_string_literal: true
 
+require_relative 'lib/lall/version'
+
 Gem::Specification.new do |spec|
   spec.name          = 'lall'
-  spec.version       = '0.1.0'
+  spec.version       = Lall::VERSION
   spec.authors       = ['Eric Griffith']
   spec.email         = ['your.email@example.com']
 

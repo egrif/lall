@@ -58,7 +58,10 @@
     "popen",
     "rakefile",
     "dbuser",
-    "srand"
+    "srand",
+    "unshift",
+    "subkey",
+    "subvalue"
   ],
   "ignorePaths": [
     "node_modules/**",

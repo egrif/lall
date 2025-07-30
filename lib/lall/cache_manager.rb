@@ -9,30 +9,69 @@ require 'yaml'
 require 'json'
 
 module Lall
+  # Backend operations for cache storage
+  module CacheBackend
+    def backend_get(key)
+      if @redis
+        @redis.get(key)
+      else
+        cache_file = File.join(@cache_dir, key)
+        File.exist?(cache_file) ? File.read(cache_file) : nil
+      end
+    end
+
+    def backend_set(key, value) # rubocop:disable Naming/PredicateMethod
+      if @redis
+        @redis.set(key, value)
+      else
+        cache_file = File.join(@cache_dir, key)
+        File.write(cache_file, value)
+      end
+      true
+    end
+
+    def backend_delete(key) # rubocop:disable Naming/PredicateMethod
+      if @redis
+        @redis.del(key)
+      else
+        cache_file = File.join(@cache_dir, key)
+        FileUtils.rm_f(cache_file)
+      end
+      true
+    end
+  end
+
   class CacheManager
+    include CacheBackend
+
     DEFAULT_TTL = 3600 # 1 hour
     DEFAULT_CACHE_DIR = '~/.lall/cache'
     DEFAULT_SECRET_KEY_FILE = '~/.lall/secret.key'
 
+    # rubocop:disable Metrics/AbcSize
     def initialize(options = {})
-      @redis_url = options[:redis_url] || ENV['REDIS_URL']
-      @cache_dir = expand_path(options[:cache_dir] || ENV['LALL_CACHE_DIR'] || 
+      @redis_url = options[:redis_url] || ENV.fetch('REDIS_URL', nil)
+      @cache_dir = expand_path(options[:cache_dir] || ENV['LALL_CACHE_DIR'] ||
                                cache_config['directory'] || DEFAULT_CACHE_DIR)
-      @ttl = options[:ttl] || ENV['LALL_CACHE_TTL']&.to_i || 
+      @ttl = options[:ttl] || ENV['LALL_CACHE_TTL']&.to_i ||
              cache_config['ttl'] || DEFAULT_TTL
-      @enabled = options.key?(:enabled) ? options[:enabled] : 
-                 ENV['LALL_CACHE_ENABLED']&.downcase != 'false' && 
-                 (cache_config['enabled'] != false)
-      @secret_key_file = expand_path(options[:secret_key_file] || 
-                                     ENV['LALL_SECRET_KEY_FILE'] || 
-                                     cache_config['secret_key_file'] || 
+      @enabled = if options.key?(:enabled)
+                   options[:enabled]
+                 else
+                   ENV['LALL_CACHE_ENABLED']&.downcase != 'false' &&
+                     (cache_config['enabled'] != false)
+                 end
+      @secret_key_file = expand_path(options[:secret_key_file] ||
+                                     ENV['LALL_SECRET_KEY_FILE'] ||
+                                     cache_config['secret_key_file'] ||
                                      DEFAULT_SECRET_KEY_FILE)
 
       setup_cache_backend
       setup_encryption
     end
+    # rubocop:enable Metrics/AbcSize
 
-    def get(key, is_secret: false)
+    def get(key)
       return nil unless @enabled
 
       cached_data = backend_get(cache_key(key))
@@ -40,7 +79,7 @@ module Lall
 
       begin
         parsed_data = JSON.parse(cached_data)
-        
+
         # Check expiration
         if Time.now.to_i > parsed_data['expires_at']
           delete(key)
@@ -48,7 +87,7 @@ module Lall
         end
 
         value = parsed_data['value']
-        
+
         # Decrypt if it was stored as encrypted
         if parsed_data['encrypted']
           value = decrypt(value)
@@ -61,7 +100,7 @@ module Lall
         end
 
         value
-      rescue JSON::ParserError, OpenSSL::Cipher::CipherError => e
+      rescue JSON::ParserError, OpenSSL::Cipher::CipherError
         # If we can't parse or decrypt, treat as cache miss
         delete(key)
         nil
@@ -83,12 +122,13 @@ module Lall
 
     def delete(key)
       return false unless @enabled
+
       backend_delete(cache_key(key))
     end
 
-    def clear
+    def clear_cache # rubocop:disable Naming/PredicateMethod
       return false unless @enabled
-      
+
       if @redis
         @redis.flushdb
       else
@@ -108,20 +148,18 @@ module Lall
         enabled: @enabled,
         ttl: @ttl,
         cache_dir: @redis ? nil : @cache_dir,
-        redis_url: @redis ? @redis_url&.gsub(/:\/\/.*@/, '://***@') : nil
+        redis_url: @redis ? @redis_url&.gsub(%r{://.*@}, '://***@') : nil
       }
     end
 
     private
 
     def cache_config
-      @cache_config ||= begin
-        if defined?(SETTINGS) && SETTINGS['cache']
-          SETTINGS['cache']
-        else
-          {}
-        end
-      end
+      @cache_config ||= if defined?(SETTINGS) && SETTINGS['cache']
+                          SETTINGS['cache']
+                        else
+                          {}
+                        end
     end
 
     def expand_path(path)
@@ -135,7 +173,7 @@ module Lall
           @redis.ping # Test connection
         rescue Redis::CannotConnectError, Redis::ConnectionError => e
           warn "Warning: Could not connect to Redis (#{@redis_url}): #{e.message}"
-          warn "Falling back to disk cache"
+          warn 'Falling back to disk cache'
           @redis = nil
           setup_disk_cache
         end
@@ -145,7 +183,7 @@ module Lall
     end
 
     def setup_disk_cache
-      FileUtils.mkdir_p(@cache_dir) unless File.exist?(@cache_dir)
+      FileUtils.mkdir_p(@cache_dir)
     end
 
     def setup_encryption
@@ -174,53 +212,24 @@ module Lall
 
     def decrypt(encrypted_data)
       data = Base64.strict_decode64(encrypted_data)
-      
+
       # Extract IV (12 bytes), auth tag (16 bytes), and encrypted data
       iv = data[0, 12]
       auth_tag = data[12, 16]
-      encrypted = data[28..-1]
+      encrypted = data[28..]
 
       cipher = OpenSSL::Cipher.new('AES-256-GCM')
       cipher.decrypt
       cipher.key = @secret_key
       cipher.iv = iv
       cipher.auth_tag = auth_tag
-      
+
       cipher.update(encrypted) + cipher.final
     end
 
     def cache_key(key)
       # Create a consistent cache key using SHA256
       Digest::SHA256.hexdigest("lall:#{key}")
-    end
-
-    def backend_get(key)
-      if @redis
-        @redis.get(key)
-      else
-        cache_file = File.join(@cache_dir, key)
-        File.exist?(cache_file) ? File.read(cache_file) : nil
-      end
-    end
-
-    def backend_set(key, value)
-      if @redis
-        @redis.set(key, value)
-      else
-        cache_file = File.join(@cache_dir, key)
-        File.write(cache_file, value)
-      end
-      true
-    end
-
-    def backend_delete(key)
-      if @redis
-        @redis.del(key)
-      else
-        cache_file = File.join(@cache_dir, key)
-        File.delete(cache_file) if File.exist?(cache_file)
-      end
-      true
     end
   end
 end

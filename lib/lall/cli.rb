@@ -127,7 +127,7 @@ class LallCLI
 
     begin
       @cache_manager = Lall::CacheManager.new(cache_options)
-    rescue => e
+    rescue StandardError => e
       # If cache manager fails to initialize, create a null cache manager
       @cache_manager = NullCacheManager.new
       warn "Warning: Cache initialization failed: #{e.message}" if @options[:debug]
@@ -136,19 +136,19 @@ class LallCLI
 
   # Null object pattern for cache manager
   class NullCacheManager
-    def get(key, is_secret: false)
+    def get(_key, _is_secret: false)
       nil
     end
 
-    def set(key, value, is_secret: false)
+    def set(_key, _value, _is_secret: false) # rubocop:disable Naming/PredicateMethod
       false
     end
 
-    def delete(key)
+    def delete(_key) # rubocop:disable Naming/PredicateMethod
       false
     end
 
-    def clear
+    def clear # rubocop:disable Naming/PredicateMethod
       false
     end
 
@@ -162,10 +162,10 @@ class LallCLI
   end
 
   def clear_cache_and_exit
-    if @cache_manager.clear
+    if @cache_manager.clear_cache
       puts 'Cache cleared successfully.'
     else
-      puts 'Failed to clear cache or caching is disabled.'
+      puts 'Failed to clear cache.'
     end
     exit 0
   end
@@ -277,26 +277,26 @@ class LallCLI
     # Try to get data from cache first
     cache_key = "env_data:#{env}"
     cached_data = @cache_manager.get(cache_key)
-    
+
     if cached_data
       puts "Cache hit for environment: #{env}" if @options[:debug]
       return cached_data
     end
 
     puts "Cache miss for environment: #{env}" if @options[:debug]
-    
+
     # Fetch fresh data
     yaml_data = Lotus::Runner.fetch_yaml(env)
     return {} if yaml_data.nil?
-    
+
     search_data = {}
     %w[group configs secrets group_secrets].each do |k|
       search_data[k] = yaml_data[k] if yaml_data.key?(k)
     end
-    
+
     # Cache the data (secrets will be encrypted automatically)
     @cache_manager.set(cache_key, search_data)
-    
+
     search_data
   end
 

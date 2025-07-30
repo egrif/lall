@@ -107,7 +107,7 @@ RSpec.describe Lall::CacheManager do
     end
   end
 
-  describe '#clear' do
+  describe '#clear_cache' do
     let(:manager) { Lall::CacheManager.new(cache_config) }
 
     it 'clears all cache entries' do
@@ -117,7 +117,7 @@ RSpec.describe Lall::CacheManager do
       expect(manager.get('key1')).not_to be_nil
       expect(manager.get('key2')).not_to be_nil
       
-      manager.clear
+      manager.clear_cache
       
       expect(manager.get('key1')).to be_nil
       expect(manager.get('key2')).to be_nil

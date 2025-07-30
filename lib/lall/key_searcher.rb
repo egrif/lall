@@ -103,7 +103,7 @@ class KeySearcher
 
   def self.fetch_and_update_secret(job, group_name, mutex, results, cache_manager)
     group = job[:path].include?('group_secrets') ? group_name : nil
-    
+
     # Try cache first if available
     secret_val = nil
     if cache_manager
@@ -111,12 +111,12 @@ class KeySearcher
       cache_key += ":#{group}" if group
       secret_val = cache_manager.get(cache_key, is_secret: true)
     end
-    
+
     # Fetch from lotus if not cached
     if secret_val.nil?
       secret_val = Lotus::Runner.secret_get(job[:env], job[:key], group: group)
       secret_val = parse_secret_value(secret_val)
-      
+
       # Cache the secret if cache manager is available
       if cache_manager && secret_val
         cache_key = "secret:#{job[:env]}:#{job[:key]}"
@@ -124,7 +124,7 @@ class KeySearcher
         cache_manager.set(cache_key, secret_val, is_secret: true)
       end
     end
-    
+
     update_secret_results(mutex, results, job, secret_val)
   end
 

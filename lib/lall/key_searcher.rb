@@ -51,12 +51,12 @@ class KeySearcher
   end
 
   def self.search(obj, search_str, path = [], results = [], env: nil, expose: false,
-                  root_obj: nil, insensitive: false)
+                  root_obj: nil, insensitive: false, cache_manager: nil)
     root_obj ||= obj
     secret_jobs = []
 
     perform_object_search(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive)
-    process_secret_jobs(secret_jobs, root_obj, results) if expose && env && !secret_jobs.empty?
+    process_secret_jobs(secret_jobs, root_obj, results, cache_manager) if expose && env && !secret_jobs.empty?
 
     results
   end
@@ -86,25 +86,45 @@ class KeySearcher
     end
   end
 
-  def self.process_secret_jobs(secret_jobs, root_obj, results)
+  def self.process_secret_jobs(secret_jobs, root_obj, results, cache_manager = nil)
     group_name = find_group(root_obj)
     mutex = Mutex.new
-    threads = create_secret_fetch_threads(secret_jobs, group_name, mutex, results)
+    threads = create_secret_fetch_threads(secret_jobs, group_name, mutex, results, cache_manager)
     threads.each(&:join)
   end
 
-  def self.create_secret_fetch_threads(secret_jobs, group_name, mutex, results)
+  def self.create_secret_fetch_threads(secret_jobs, group_name, mutex, results, cache_manager)
     secret_jobs.map do |job|
       Thread.new do
-        fetch_and_update_secret(job, group_name, mutex, results)
+        fetch_and_update_secret(job, group_name, mutex, results, cache_manager)
       end
     end
   end
 
-  def self.fetch_and_update_secret(job, group_name, mutex, results)
+  def self.fetch_and_update_secret(job, group_name, mutex, results, cache_manager)
     group = job[:path].include?('group_secrets') ? group_name : nil
-    secret_val = Lotus::Runner.secret_get(job[:env], job[:key], group: group)
-    secret_val = parse_secret_value(secret_val)
+    
+    # Try cache first if available
+    secret_val = nil
+    if cache_manager
+      cache_key = "secret:#{job[:env]}:#{job[:key]}"
+      cache_key += ":#{group}" if group
+      secret_val = cache_manager.get(cache_key, is_secret: true)
+    end
+    
+    # Fetch from lotus if not cached
+    if secret_val.nil?
+      secret_val = Lotus::Runner.secret_get(job[:env], job[:key], group: group)
+      secret_val = parse_secret_value(secret_val)
+      
+      # Cache the secret if cache manager is available
+      if cache_manager && secret_val
+        cache_key = "secret:#{job[:env]}:#{job[:key]}"
+        cache_key += ":#{group}" if group
+        cache_manager.set(cache_key, secret_val, is_secret: true)
+      end
+    end
+    
     update_secret_results(mutex, results, job, secret_val)
   end
 

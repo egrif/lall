@@ -12,3 +12,5 @@ group :development, :test do
   gem 'rubocop-rspec', '~> 2.20', require: false
   gem 'simplecov', '~> 0.22', require: false
 end
+
+gem "redis", "~> 5.4"

@@ -145,7 +145,7 @@ RSpec.describe LallCLI do
       end
 
       it 'processes environment list from -e option' do
-        cli = LallCLI.new(['-s', 'api_token', '-e', 'prod,staging'])
+        cli = LallCLI.new(['-s', 'api_token', '-e', 'prod,staging', '--no-cache'])
 
         expect(Lotus::Runner).to receive(:fetch_yaml).with('prod')
         expect(Lotus::Runner).to receive(:fetch_yaml).with('staging')
@@ -153,7 +153,7 @@ RSpec.describe LallCLI do
       end
 
       it 'processes environment list from -g option' do
-        cli = LallCLI.new(['-s', 'api_token', '-g', 'test'])
+        cli = LallCLI.new(['-s', 'api_token', '-g', 'test', '--no-cache'])
 
         expect(Lotus::Runner).to receive(:fetch_yaml).with('test-env1')
         expect(Lotus::Runner).to receive(:fetch_yaml).with('test-env2')
@@ -227,7 +227,7 @@ RSpec.describe LallCLI do
   end
 
   describe '#fetch_env_results' do
-    let(:cli) { LallCLI.new(['-s', 'token', '-e', 'env1']) }
+    let(:cli) { LallCLI.new(['-s', 'token', '-e', 'env1', '--no-cache']) }
     let(:yaml_data) { { 'configs' => { 'api_token' => 'test123' } } }
 
     before do

@@ -26,3 +26,18 @@ groups:
     - prod-s9
     - prod-s201
     - prod-s101
+
+# Cache configuration
+cache:
+  # Cache TTL in seconds (default: 1 hour)
+  ttl: 3600
+  # Local cache directory (default: ~/.lall/cache)
+  # Can be overridden by LALL_CACHE_DIR environment variable
+  directory: ~/.lall/cache
+  # Enable/disable caching (default: true)
+  # Can be overridden by LALL_CACHE_ENABLED environment variable
+  enabled: true
+  # Secret encryption key file (default: ~/.lall/secret.key)
+  # If file doesn't exist, a new key will be generated
+  # Can be overridden by LALL_SECRET_KEY_FILE environment variable
+  secret_key_file: ~/.lall/secret.key

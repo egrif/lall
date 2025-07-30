@@ -8,6 +8,7 @@ require 'lotus/environment'
 require 'lotus/group'
 require_relative 'key_searcher'
 require_relative 'table_formatter'
+require_relative 'cache_manager'
 
 SETTINGS_PATH = File.expand_path('../../config/settings.yml', __dir__)
 SETTINGS = YAML.load_file(SETTINGS_PATH)
@@ -17,6 +18,7 @@ class LallCLI
   def initialize(argv)
     @options = {}
     setup_option_parser.parse!(argv)
+    initialize_cache_manager
   end
 
   private
@@ -66,11 +68,34 @@ class LallCLI
       @options[:expose] = true
     end
     opts.on('-d', '--debug', 'Enable debug output (prints lotus commands)') { @options[:debug] = true }
+    setup_cache_options(opts)
+  end
+
+  def setup_cache_options(opts)
+    opts.on('--cache-ttl=SECONDS', Integer, 'Cache TTL in seconds (default: 3600)') do |v|
+      @options[:cache_ttl] = v
+    end
+    opts.on('--cache-dir=DIR', 'Cache directory for disk storage (default: ~/.lall/cache)') do |v|
+      @options[:cache_dir] = v
+    end
+    opts.on('--no-cache', 'Disable caching') { @options[:cache_enabled] = false }
+    opts.on('--clear-cache', 'Clear cache and exit') { @options[:clear_cache] = true }
+    opts.on('--cache-stats', 'Show cache statistics and exit') { @options[:cache_stats] = true }
   end
 
   public
 
   def run
+    # Initialize cache manager
+    initialize_cache_manager
+
+    # Handle cache-specific commands
+    if @options[:clear_cache]
+      clear_cache_and_exit
+    elsif @options[:cache_stats]
+      show_cache_stats_and_exit
+    end
+
     # Handle special case: -g list
     if @options[:group] == 'list'
       print_available_groups
@@ -91,6 +116,69 @@ class LallCLI
     ENV_GROUPS.each do |group_name, environments|
       puts "  #{group_name}: #{environments.join(', ')}"
     end
+  end
+
+  def initialize_cache_manager
+    cache_options = {
+      ttl: @options[:cache_ttl],
+      cache_dir: @options[:cache_dir],
+      enabled: @options[:cache_enabled]
+    }.compact
+
+    begin
+      @cache_manager = Lall::CacheManager.new(cache_options)
+    rescue => e
+      # If cache manager fails to initialize, create a null cache manager
+      @cache_manager = NullCacheManager.new
+      warn "Warning: Cache initialization failed: #{e.message}" if @options[:debug]
+    end
+  end
+
+  # Null object pattern for cache manager
+  class NullCacheManager
+    def get(key, is_secret: false)
+      nil
+    end
+
+    def set(key, value, is_secret: false)
+      false
+    end
+
+    def delete(key)
+      false
+    end
+
+    def clear
+      false
+    end
+
+    def enabled?
+      false
+    end
+
+    def stats
+      { backend: 'disabled', enabled: false }
+    end
+  end
+
+  def clear_cache_and_exit
+    if @cache_manager.clear
+      puts 'Cache cleared successfully.'
+    else
+      puts 'Failed to clear cache or caching is disabled.'
+    end
+    exit 0
+  end
+
+  def show_cache_stats_and_exit
+    stats = @cache_manager.stats
+    puts 'Cache Statistics:'
+    puts "  Backend: #{stats[:backend]}"
+    puts "  Enabled: #{stats[:enabled]}"
+    puts "  TTL: #{stats[:ttl]} seconds"
+    puts "  Cache Dir: #{stats[:cache_dir]}" if stats[:cache_dir]
+    puts "  Redis URL: #{stats[:redis_url]}" if stats[:redis_url]
+    exit 0
   end
 
   def validate_options
@@ -186,11 +274,29 @@ class LallCLI
   end
 
   def extract_search_data(env)
+    # Try to get data from cache first
+    cache_key = "env_data:#{env}"
+    cached_data = @cache_manager.get(cache_key)
+    
+    if cached_data
+      puts "Cache hit for environment: #{env}" if @options[:debug]
+      return cached_data
+    end
+
+    puts "Cache miss for environment: #{env}" if @options[:debug]
+    
+    # Fetch fresh data
     yaml_data = Lotus::Runner.fetch_yaml(env)
+    return {} if yaml_data.nil?
+    
     search_data = {}
     %w[group configs secrets group_secrets].each do |k|
       search_data[k] = yaml_data[k] if yaml_data.key?(k)
     end
+    
+    # Cache the data (secrets will be encrypted automatically)
+    @cache_manager.set(cache_key, search_data)
+    
     search_data
   end
 
@@ -202,7 +308,8 @@ class LallCLI
       [],
       env: env,
       expose: @options[:expose],
-      insensitive: @options[:insensitive]
+      insensitive: @options[:insensitive],
+      cache_manager: @cache_manager
     )
   end
 end

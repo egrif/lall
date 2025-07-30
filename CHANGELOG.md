@@ -7,20 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2025-07-30
+
 ### Added
-- Comprehensive test suite with >90% coverage
-- Detailed API documentation
-- Contributing guidelines and development workflow
-- Integration tests with mocked lotus commands
+- Group listing functionality: `lall -g list` displays all available groups and their environments
+- Enhanced help documentation for the `-g` option to mention the list functionality
 
 ### Changed
-- Improved error handling and user feedback
-- Enhanced documentation with examples and use cases
-- Better code organization and modularity
+- Improved validation logic to allow `-g list` without requiring a search string
+- Updated test suite to include comprehensive coverage for group listing feature
+
+## [0.1.1] - 2025-07-30
+
+### Added
+- Comprehensive spell checking with cspell configuration
+- Enhanced security scanning with git-secrets whitelist patterns
+- Complete test coverage with 117 test cases across all components
+
+### Changed
+- Updated Ruby version requirements to 3.1+ for better compatibility and modern language features
+- Modernized CI/CD pipeline to use Ruby 3.1-3.3 matrix
+- Fixed gemspec to dynamically read version from `lib/lall/version.rb`
+- Updated RuboCop configuration for Ruby 3.1+ features
+- Major code refactoring to reduce complexity and improve maintainability:
+  - Extracted methods in CLI, KeySearcher, and TableFormatter classes
+  - Reduced parameter lists and improved code readability
+  - Applied method extraction patterns to break down complex operations
 
 ### Fixed
-- Thread safety issues in parallel processing
-- Argument validation edge cases
+- Resolved 547 RuboCop violations through systematic code improvements
+- Resolved hardcoded file paths in test fixtures that caused CI failures
+- Fixed test suite compatibility across different environments
+- Corrected release workflow configuration for proper gem publishing
+- Applied modern Ruby syntax improvements (anonymous block forwarding)
+- Eliminated security scan false positives with comprehensive whitelist
 
 ## [0.1.0] - 2024-01-XX
 

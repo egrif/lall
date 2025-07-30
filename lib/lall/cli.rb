@@ -1,7 +1,9 @@
 # lib/lall/cli.rb
 require 'optparse'
 require 'yaml'
-require_relative 'lotus_runner'
+require 'lotus/runner'
+require 'lotus/environment'
+require 'lotus/group'
 require_relative 'key_searcher'
 require_relative 'table_formatter'
 
@@ -24,6 +26,7 @@ class LallCLI
         @options[:truncate] = v.nil? ? 40 : v
       end
       opts.on('-x', '--expose', 'Expose secrets (show actual secret values for secrets/group_secrets keys)') { @options[:expose] = true }
+      opts.on('-d', '--debug', 'Enable debug output (prints lotus commands)') { @options[:debug] = true }
     end.parse!(argv)
   end
 
@@ -39,8 +42,8 @@ class LallCLI
       @options[:env].split(',').map(&:strip)
     end
     # Ping each unique -s value before fetching results
-    s_args = envs.map { |env| LotusRunner.get_lotus_args(env).first }.uniq
-    s_args.each { |s_arg| LotusRunner.ping(s_arg) }
+    s_args = envs.map { |env| Lotus::Runner.get_lotus_args(env).first }.uniq
+    s_args.each { |s_arg| Lotus::Runner.ping(s_arg) }
     env_results = fetch_env_results(envs)
     all_keys = env_results.values.flatten.map { |r| r[:key] }.uniq
     all_paths = env_results.values.flatten.map { |r| r[:path] }.uniq
@@ -65,15 +68,21 @@ class LallCLI
     threads = []
     envs.each do |env|
       threads << Thread.new do
-        yaml_data = LotusRunner.fetch_yaml(env)
+        yaml_data = Lotus::Runner.fetch_yaml(env)
+        # Extract only the relevant top-level keys for searching
+        search_data = {}
+        %w[group configs secrets group_secrets].each do |k|
+          search_data[k] = yaml_data[k] if yaml_data.key?(k)
+        end
         result = KeySearcher.search(
-          yaml_data,
+          search_data,
           @options[:string],
           [],
           [],
           @options[:insensitive],
           env: env,
-          expose: @options[:expose]
+          expose: @options[:expose],
+          debug: @options[:debug]
         )
         mutex.synchronize { env_results[env] = result }
       end

@@ -1,0 +1,15 @@
+group: test-group
+configs:
+  database_url: postgres://localhost:5432/test_env1
+  api_token: token_env1_123
+  timeout: 30
+  feature_flags:
+    new_ui: true
+    beta_feature: false
+secrets:
+  keys:
+    - secret_key
+    - api_secret
+group_secrets:
+  keys:
+    - shared_secret

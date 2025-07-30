@@ -18,5 +18,9 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency "yaml"
   spec.add_runtime_dependency "optparse"
   spec.add_runtime_dependency "open3"
-  spec.add_development_dependency "rake"
+  
+  spec.add_development_dependency "rake", "~> 13.0"
+  spec.add_development_dependency "rspec", "~> 3.12"
+  spec.add_development_dependency "pry", "~> 0.14"
+  spec.add_development_dependency "simplecov", "~> 0.22"
 end

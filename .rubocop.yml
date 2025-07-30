@@ -1,0 +1,69 @@
+# .rubocop.yml
+
+require:
+  - rubocop-rspec
+
+AllCops:
+  TargetRubyVersion: 2.7
+  NewCops: enable
+  Exclude:
+    - 'vendor/**/*'
+    - 'tmp/**/*'
+    - 'coverage/**/*'
+
+# Prefer double quotes for consistency
+Style/StringLiterals:
+  EnforcedStyle: single_quotes
+
+# Allow longer lines in some cases
+Layout/LineLength:
+  Max: 120
+  Exclude:
+    - 'spec/**/*'
+
+# Allow longer methods for CLI parsing and table formatting
+Metrics/MethodLength:
+  Max: 25
+  Exclude:
+    - 'lib/lall/cli.rb'
+    - 'lib/lall/table_formatter.rb'
+
+# Allow longer classes for main CLI and table formatter
+Metrics/ClassLength:
+  Max: 150
+  Exclude:
+    - 'lib/lall/cli.rb'
+    - 'lib/lall/table_formatter.rb'
+
+# Allow more complex CLI parsing
+Metrics/CyclomaticComplexity:
+  Max: 10
+
+Metrics/PerceivedComplexity:
+  Max: 10
+
+# Allow more parameters for table formatting methods
+Metrics/ParameterLists:
+  Max: 6
+
+# Disable some style cops that don't fit our needs
+Style/Documentation:
+  Enabled: false
+
+Style/FrozenStringLiteralComment:
+  Enabled: true
+
+# RSpec specific configurations
+RSpec/ExampleLength:
+  Max: 20
+
+RSpec/MultipleExpectations:
+  Max: 5
+
+RSpec/NestedGroups:
+  Max: 4
+
+# Allow describe blocks with constants
+RSpec/DescribeClass:
+  Exclude:
+    - 'spec/integration_spec.rb'

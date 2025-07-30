@@ -1,0 +1,18 @@
+groups:
+  test:
+    - test-env1
+    - test-env2
+  staging:
+    - staging
+    - staging-s2
+    - staging-s3
+  prod-us:
+    - prod
+    - prod-s2
+    - prod-s3
+    - prod-s4
+    - prod-s5
+  integration:
+    - integration-env1
+    - integration-env2
+    - integration-env3

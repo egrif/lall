@@ -1,4 +1,8 @@
 # lib/lall/key_searcher.rb
+require 'lotus/environment'
+require 'lotus/group'
+require 'lotus/runner'
+
 class KeySearcher
   def self.match_key?(key_str, search_str)
     if search_str.include?("*")
@@ -20,7 +24,13 @@ class KeySearcher
     end
   end
 
-  def self.search(obj, search_str, path = [], results = [], insensitive = false, env: nil, expose: false)
+  def self.find_group(obj)
+    # The group is a value at the root of the YAML hash
+    obj.is_a?(Hash) ? obj['group'] : nil
+  end
+
+  def self.search(obj, search_str, path = [], results = [], insensitive = false, env: nil, expose: false, root_obj: nil, debug: false)
+    root_obj ||= obj
     secret_jobs = []
     case obj
     when Hash
@@ -29,7 +39,7 @@ class KeySearcher
         if match_key?(key_str, search_str)
           handle_secret_match(results, secret_jobs, path, k, v, expose, env)
         end
-        search(v, search_str, path + [k], results, insensitive, env: env, expose: expose)
+        search(v, search_str, path + [k], results, insensitive, env: env, expose: expose, root_obj: root_obj)
       end
     when Array
       obj.each_with_index do |v, i|
@@ -41,10 +51,12 @@ class KeySearcher
     end
     # After traversal, if there are secret jobs, run them in parallel and update results
     if expose && env && !secret_jobs.empty?
+      group_name = find_group(root_obj)
       mutex = Mutex.new
       threads = secret_jobs.map do |job|
         Thread.new do
-          secret_val = LotusRunner.secret_get(job[:env], job[:key])
+          group = job[:path].include?('group_secrets') ? group_name : nil
+          secret_val = Lotus::Runner.secret_get(job[:env], job[:key], group: group)
           # Extract only the part after the first '='
           if secret_val && secret_val.include?("=")
             secret_val = secret_val.split("=", 2)[1].strip

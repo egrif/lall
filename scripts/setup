@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# lall Development Setup Script
+# This script sets up the development environment for the lall CLI tool
+
+set -e
+
+echo "🚀 Setting up lall development environment..."
+
+# Check Ruby version
+REQUIRED_RUBY_VERSION="2.7"
+CURRENT_RUBY_VERSION=$(ruby -v | grep -oE '[0-9]+\.[0-9]+' | head -1)
+
+if [ "$(printf '%s\n' "$REQUIRED_RUBY_VERSION" "$CURRENT_RUBY_VERSION" | sort -V | head -n1)" != "$REQUIRED_RUBY_VERSION" ]; then
+    echo "❌ Ruby $REQUIRED_RUBY_VERSION or higher is required. Current version: $CURRENT_RUBY_VERSION"
+    exit 1
+fi
+
+echo "✅ Ruby version check passed ($CURRENT_RUBY_VERSION)"
+
+# Install bundler if not present
+if ! command -v bundle &> /dev/null; then
+    echo "📦 Installing bundler..."
+    gem install bundler
+fi
+
+# Install dependencies
+echo "📦 Installing dependencies..."
+bundle install
+
+# Run tests to verify setup
+echo "🧪 Running test suite..."
+bundle exec rake spec
+
+if [ $? -eq 0 ]; then
+    echo "✅ All tests passed!"
+else
+    echo "❌ Some tests failed. Please check the output above."
+    exit 1
+fi
+
+# Check if lotus command is available
+if command -v lotus &> /dev/null; then
+    echo "✅ lotus command found in PATH"
+else
+    echo "⚠️  lotus command not found in PATH"
+    echo "   This is required for the CLI to work with real environments"
+    echo "   Tests will still pass using mocked lotus commands"
+fi
+
+echo ""
+echo "🎉 Setup complete! You can now:"
+echo ""
+echo "   Run tests:           bundle exec rake test"
+echo "   Run lall CLI:        ./bin/lall --help"
+echo "   Build gem:           gem build lall.gemspec"
+echo "   Check code style:    bundle exec rubocop"
+echo ""
+echo "📚 Documentation:"
+echo "   README.md           - Basic usage and installation"
+echo "   docs/API.md         - Detailed API documentation"
+echo "   docs/EXAMPLES.md    - Usage examples and patterns"
+echo "   CONTRIBUTING.md     - Development guidelines"
+echo ""
+echo "Happy coding! 🎯"

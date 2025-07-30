@@ -114,10 +114,9 @@ RSpec.describe LallCLI do
 
         expected_output = <<~OUTPUT
           Available groups:
-            test: test-env1, test-env2
             staging: staging, staging-s2, staging-s3
-            prod-us: prod, prod-s2, prod-s3, prod-s4, prod-s5
-            integration: integration-env1, integration-env2, integration-env3
+            prod-us: prod, prod-s2, prod-s3, prod-s4, prod-s5, prod-s6, prod-s7, prod-s8, prod-s9
+            prod-all: prod, prod-s2, prod-s3, prod-s4, prod-s5, prod-s6, prod-s7, prod-s8, prod-s9, prod-s201, prod-s101
         OUTPUT
 
         expect { cli.run }.to output(expected_output).to_stdout

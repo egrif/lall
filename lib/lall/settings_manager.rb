@@ -9,7 +9,7 @@ module Lall
   # 2. Environment variables
   # 3. User settings (~/.lall/settings.yml)
   # 4. Gem default settings (config/settings.yml)
-  class SettingsManager
+  class SettingsManager # rubocop:disable Metrics/ClassLength
     USER_SETTINGS_PATH = File.expand_path('~/.lall/settings.yml')
     GEM_SETTINGS_PATH = File.expand_path('../../config/settings.yml', __dir__)
 
@@ -87,12 +87,31 @@ module Lall
       return if File.exist?(USER_SETTINGS_PATH)
 
       user_dir = File.dirname(USER_SETTINGS_PATH)
-      FileUtils.mkdir_p(user_dir) unless Dir.exist?(user_dir)
+      FileUtils.mkdir_p(user_dir)
 
-      default_user_settings = {
+      default_user_settings = build_default_user_settings
+      # Convert to YAML with comments
+      yaml_content = generate_yaml_with_comments(default_user_settings)
+      File.write(USER_SETTINGS_PATH, yaml_content)
+    end
+
+    # Display the current settings resolution for debugging
+    def debug_settings(setting_key = nil)
+      if setting_key
+        debug_single_setting(setting_key)
+      else
+        debug_all_settings
+      end
+    end
+
+    private
+
+    def build_default_user_settings # rubocop:disable Metrics/MethodLength
+      {
         '# Lall Personal Settings' => nil,
         '# This file allows you to customize default behavior for the lall CLI tool.' => nil,
-        '# Settings here will override gem defaults but can be overridden by environment variables or CLI options.' => nil,
+        '# Settings here will override gem defaults but can be overridden by ' \
+        'environment variables or CLI options.' => nil,
         '# For more information, see: https://github.com/egrif/lall#settings-priority-resolution' => nil,
         '' => nil,
         'cache' => {
@@ -120,22 +139,7 @@ module Lall
           'pivot' => false
         }
       }
-
-      # Convert to YAML with comments
-      yaml_content = generate_yaml_with_comments(default_user_settings)
-      File.write(USER_SETTINGS_PATH, yaml_content)
     end
-
-    # Display the current settings resolution for debugging
-    def debug_settings(setting_key = nil)
-      if setting_key
-        debug_single_setting(setting_key)
-      else
-        debug_all_settings
-      end
-    end
-
-    private
 
     def load_user_settings
       return {} unless File.exist?(USER_SETTINGS_PATH)
@@ -158,7 +162,7 @@ module Lall
     def get_from_cli(setting_key)
       # Convert dot notation to symbol lookup in CLI options
       key_parts = setting_key.split('.')
-      
+
       if key_parts.length == 1
         # Simple key like 'debug', 'truncate'
         key_sym = key_parts[0].to_sym
@@ -169,7 +173,7 @@ module Lall
         if key_parts[1] == 'directory'
           @cli_options[:cache_dir]
         else
-          cache_key = "cache_#{key_parts[1]}".to_sym
+          cache_key = :"cache_#{key_parts[1]}"
           @cli_options[cache_key]
         end
       end
@@ -179,7 +183,7 @@ module Lall
       env_var = ENV_VAR_MAPPINGS[setting_key]
       return nil unless env_var
 
-      value = ENV[env_var]
+      value = ENV.fetch(env_var, nil)
       return nil if value.nil?
 
       # Convert string values to appropriate types
@@ -197,12 +201,11 @@ module Lall
       # Try direct key first, then try nested under 'output' for CLI settings
       value = get_nested_value(@user_settings, setting_key.split('.'))
       return value unless value.nil?
-      
+
       # For settings like 'debug', 'truncate', etc., also try under 'output'
-      if setting_key.split('.').length == 1 && %w[debug truncate expose insensitive path_also pivot].include?(setting_key)
+      if setting_key.split('.').length == 1 && %w[debug truncate expose insensitive path_also
+                                                  pivot].include?(setting_key)
         get_nested_value(@user_settings, ['output', setting_key])
-      else
-        nil
       end
     end
 
@@ -241,7 +244,7 @@ module Lall
     end
 
     def debug_all_settings
-      puts "Current settings resolution:"
+      puts 'Current settings resolution:'
       puts "\nCache settings:"
       cache_settings.each { |k, v| puts "  #{k}: #{v}" }
       puts "\nCLI settings:"
@@ -252,7 +255,7 @@ module Lall
     # Generate YAML content with inline comments
     def generate_yaml_with_comments(hash)
       lines = []
-      
+
       hash.each do |key, value|
         if key.start_with?('#') || key.empty?
           # Add comment lines
@@ -276,7 +279,7 @@ module Lall
           lines << "#{key}: #{value.inspect}"
         end
       end
-      
+
       lines.join("\n")
     end
   end

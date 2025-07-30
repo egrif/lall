@@ -20,13 +20,13 @@ class LallCLI
   def initialize(argv)
     @raw_options = {}
     setup_option_parser.parse!(argv)
-    
+
     # Initialize settings manager with CLI options
     @settings = Lall::SettingsManager.new(@raw_options)
-    
+
     # Resolve final options using settings priority
     @options = resolve_all_options
-    
+
     initialize_cache_manager
   end
 
@@ -62,7 +62,9 @@ class LallCLI
   end
 
   def setup_format_options(opts)
-    opts.on('-p', '--path', 'Include the path column in the output table (optional)') { @raw_options[:path_also] = true }
+    opts.on('-p', '--path', 'Include the path column in the output table (optional)') do
+      @raw_options[:path_also] = true
+    end
     opts.on('-v', '--pivot', 'Pivot the table so environments are rows and keys/paths are columns (optional)') do
       @raw_options[:pivot] = true
     end
@@ -97,37 +99,14 @@ class LallCLI
   # Resolve all options using the settings priority system
   def resolve_all_options
     resolved = {}
-    
-    # Core search options (CLI-only, no settings fallback)
-    resolved[:string] = @raw_options[:string]
-    resolved[:env] = @raw_options[:env]
-    resolved[:group] = @raw_options[:group]
-    
-    # CLI behavior options (with settings fallback)
-    cli_settings = @settings.cli_settings
-    resolved[:debug] = @raw_options[:debug] || cli_settings[:debug]
-    resolved[:truncate] = @raw_options[:truncate] || cli_settings[:truncate]
-    resolved[:expose] = @raw_options[:expose] || cli_settings[:expose]
-    resolved[:insensitive] = @raw_options[:insensitive] || cli_settings[:insensitive]
-    resolved[:path_also] = @raw_options[:path_also] || cli_settings[:path_also]
-    resolved[:pivot] = @raw_options[:pivot] || cli_settings[:pivot]
-    
-    # Cache options (with settings fallback)
-    cache_settings = @settings.cache_settings
-    resolved[:cache_ttl] = @raw_options[:cache_ttl] || cache_settings[:ttl]
-    resolved[:cache_dir] = @raw_options[:cache_dir] || cache_settings[:directory]
-    resolved[:cache_enabled] = @raw_options.key?(:cache_enabled) ? @raw_options[:cache_enabled] : cache_settings[:enabled]
-    
-    # Special cache commands (CLI-only)
-    resolved[:clear_cache] = @raw_options[:clear_cache]
-    resolved[:cache_stats] = @raw_options[:cache_stats]
-    resolved[:debug_settings] = @raw_options[:debug_settings]
-    resolved[:init_settings] = @raw_options[:init_settings]
-    
+
+    resolve_core_options(resolved)
+    resolve_cli_behavior_options(resolved)
+    resolve_cache_options(resolved)
+    resolve_special_commands(resolved)
+
     resolved
   end
-
-  public
 
   def run
     # Initialize cache manager
@@ -140,9 +119,7 @@ class LallCLI
     end
 
     # Handle init settings command
-    if @raw_options[:init_settings]
-      init_user_settings_and_exit
-    end
+    init_user_settings_and_exit if @raw_options[:init_settings]
 
     # Handle cache-specific commands
     if @options[:clear_cache]
@@ -164,7 +141,40 @@ class LallCLI
     display_results(envs, env_results)
   end
 
-  private
+  def resolve_core_options(resolved)
+    # Core search options (CLI-only, no settings fallback)
+    resolved[:string] = @raw_options[:string]
+    resolved[:env] = @raw_options[:env]
+    resolved[:group] = @raw_options[:group]
+  end
+
+  def resolve_cli_behavior_options(resolved)
+    # CLI behavior options (with settings fallback)
+    cli_settings = @settings.cli_settings
+    resolved[:debug] = @raw_options[:debug] || cli_settings[:debug]
+    resolved[:truncate] = @raw_options[:truncate] || cli_settings[:truncate]
+    resolved[:expose] = @raw_options[:expose] || cli_settings[:expose]
+    resolved[:insensitive] = @raw_options[:insensitive] || cli_settings[:insensitive]
+    resolved[:path_also] = @raw_options[:path_also] || cli_settings[:path_also]
+    resolved[:pivot] = @raw_options[:pivot] || cli_settings[:pivot]
+  end
+
+  def resolve_cache_options(resolved)
+    # Cache options (with settings fallback)
+    cache_settings = @settings.cache_settings
+    resolved[:cache_ttl] = @raw_options[:cache_ttl] || cache_settings[:ttl]
+    resolved[:cache_dir] = @raw_options[:cache_dir] || cache_settings[:directory]
+    resolved[:cache_enabled] =
+      @raw_options.key?(:cache_enabled) ? @raw_options[:cache_enabled] : cache_settings[:enabled]
+  end
+
+  def resolve_special_commands(resolved)
+    # Special cache commands (CLI-only)
+    resolved[:clear_cache] = @raw_options[:clear_cache]
+    resolved[:cache_stats] = @raw_options[:cache_stats]
+    resolved[:debug_settings] = @raw_options[:debug_settings]
+    resolved[:init_settings] = @raw_options[:init_settings]
+  end
 
   def print_available_groups
     puts 'Available groups:'
@@ -176,7 +186,7 @@ class LallCLI
   def initialize_cache_manager
     # Use settings manager for cache configuration
     cache_settings = @settings.cache_settings
-    
+
     cache_options = {
       enabled: @options[:cache_enabled],
       ttl: @options[:cache_ttl],
@@ -243,22 +253,22 @@ class LallCLI
 
   def init_user_settings_and_exit
     settings_path = Lall::SettingsManager::USER_SETTINGS_PATH
-    
+
     if File.exist?(settings_path)
       puts "Settings file already exists at: #{settings_path}"
-      puts "To recreate it, delete the existing file first."
+      puts 'To recreate it, delete the existing file first.'
       exit 1
     end
 
     @settings.ensure_user_settings_exist
     puts "✅ Created user settings file at: #{settings_path}"
-    puts ""
-    puts "You can now customize your default settings by editing this file."
-    puts "Examples:"
-    puts "  - Set default cache TTL: cache.ttl: 7200"
-    puts "  - Set default truncation: output.truncate: 100"
-    puts "  - Enable debug by default: output.debug: true"
-    puts ""
+    puts ''
+    puts 'You can now customize your default settings by editing this file.'
+    puts 'Examples:'
+    puts '  - Set default cache TTL: cache.ttl: 7200'
+    puts '  - Set default truncation: output.truncate: 100'
+    puts '  - Enable debug by default: output.debug: true'
+    puts ''
     puts "Run 'lall --debug-settings' to see how settings are resolved."
     exit 0
   end

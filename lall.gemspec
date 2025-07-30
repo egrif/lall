@@ -8,16 +8,25 @@ Gem::Specification.new do |spec|
 
   spec.summary       = "LOTUS environment comparison CLI using lotus."
   spec.description   = "A Ruby CLI tool for comparing LOTUS configuration values across multiple environments, using the lotus command to fetch environment data."
-  spec.homepage      = "https://github.com/yourusername/lall"
+  spec.homepage      = "https://github.com/egrif/lall"
   spec.license       = "MIT"
+  
+  spec.metadata = {
+    "homepage_uri" => "https://github.com/egrif/lall",
+    "source_code_uri" => "https://github.com/egrif/lall",
+    "changelog_uri" => "https://github.com/egrif/lall/blob/main/CHANGELOG.md",
+    "bug_tracker_uri" => "https://github.com/egrif/lall/issues",
+    "documentation_uri" => "https://github.com/egrif/lall/blob/main/README.md"
+  }
 
   spec.files         = Dir["lib/**/*.rb"] + ["README.md", "bin/lall", "config/settings.yml"]
   spec.executables   = ["lall"]
   spec.require_paths = ["lib"]
+  spec.required_ruby_version = ">= 2.7.0"
 
-  spec.add_runtime_dependency "yaml"
-  spec.add_runtime_dependency "optparse"
-  spec.add_runtime_dependency "open3"
+  spec.add_runtime_dependency "yaml", "~> 0.3"
+  spec.add_runtime_dependency "optparse", "~> 0.6"
+  spec.add_runtime_dependency "open3", "~> 0.2"
   
   spec.add_development_dependency "rake", "~> 13.0"
   spec.add_development_dependency "rspec", "~> 3.12"

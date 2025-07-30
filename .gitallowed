@@ -1,0 +1,59 @@
+# .gitallowed - Patterns allowed to bypass secret detection
+#
+# This file contains regular expressions for patterns that are intentionally
+# included in the repository and should not be flagged as secrets.
+
+# GitHub Packages documentation examples
+# These are placeholder URLs used in documentation, not actual credentials
+https://.*:.*@rubygems\.pkg\.github\.com/.*
+.*:.*@rubygems\.pkg\.github\.com
+rubygems\.pkg\.github\.com/.*
+
+# Common documentation placeholders
+YOUR.*HERE
+RUBYGEMS.*KEY
+GITHUB.*secrets\.
+\$\{\{\s*secrets\..*\}\}
+
+# Example/template patterns in documentation
+api_key:.*example
+token:.*example
+password:.*example
+secret:.*example
+
+# Git configuration examples
+git config.*secrets\.
+\.gemrc.*.*:.*
+
+# Bundler configuration examples
+bundle config.*.*:.*
+
+# GitHub Actions workflow patterns
+secrets\.GITHUB_TOKEN
+secrets\..*
+
+# Ruby source files with legitimate method names and comments
+lib/.*\.rb.*secret
+lib/.*\.rb.*api_key
+lib/.*\.rb.*\.secrets
+#.*secret
+#.*token
+#.*api.*key
+
+# Test files with mock data and fixtures
+spec/.*_spec\.rb.*secret
+spec/.*_spec\.rb.*token
+spec/.*_spec\.rb.*api_key
+spec/.*_spec\.rb.*SECRET
+spec/.*_spec\.rb.*TOKEN
+spec/.*_spec\.rb.*API_KEY
+
+# File paths that commonly contain example secrets
+\.gitallowed
+docs/.*\.md
+README\.md
+CONTRIBUTING\.md
+\.github/.*\.md
+examples/.*
+test/fixtures/.*
+spec/fixtures/.*

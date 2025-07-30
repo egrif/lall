@@ -32,6 +32,10 @@ jobs:
       run: bundle exec rubocop
       if: matrix.ruby-version == '3.2'
 
+    - name: Build gem (validation)
+      run: gem build lall.gemspec
+      if: matrix.ruby-version == '3.2'
+
     - name: Generate coverage report
       run: |
         bundle exec rspec --require spec_helper

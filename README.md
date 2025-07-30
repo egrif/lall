@@ -47,6 +47,30 @@ A Ruby CLI tool for comparing YAML configuration values across multiple environm
 - The `lotus` command must be available in your PATH
 - Access to the target environments through the lotus CLI
 
+### Install from GitHub Packages
+
+```bash
+# Configure gem source
+gem sources --add https://rubygems.pkg.github.com/egrif
+
+# Install the gem
+gem install lall --source "https://rubygems.pkg.github.com/egrif"
+```
+
+Or add to your `Gemfile`:
+
+```ruby
+source "https://rubygems.pkg.github.com/egrif" do
+  gem "lall"
+end
+```
+
+### Install from RubyGems.org
+
+```bash
+gem install lall
+```
+
 ### Install from source
 
 ```bash

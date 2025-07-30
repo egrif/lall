@@ -348,16 +348,69 @@ We follow semantic versioning (SemVer):
 - **MINOR**: New features (backward compatible)
 - **PATCH**: Bug fixes (backward compatible)
 
+### Automated Release (Recommended)
+
+1. **Update version and changelog**:
+   ```bash
+   # Update lib/lall/version.rb
+   # Update CHANGELOG.md with changes
+   ```
+
+2. **Create a release on GitHub**:
+   - Go to [Releases](https://github.com/egrif/lall/releases)
+   - Click "Create a new release"
+   - Use tag format: `v1.2.3`
+   - Add release notes from CHANGELOG.md
+
+3. **Automated publishing**:
+   - GitHub Action automatically runs tests
+   - Builds and publishes gem to GitHub Packages
+   - Optionally publishes to RubyGems.org (if configured)
+
+### Manual Release
+
+Use the release script for local preparation:
+
+```bash
+./scripts/release 1.2.3
+```
+
+This script will:
+- Update the version number
+- Run all tests
+- Build the gem locally for validation
+- Provide next steps for tagging and pushing
+
+### Release Workflow
+
+The release is handled by `.github/workflows/release.yml` which:
+
+1. **Triggers on**:
+   - New tags starting with `v`
+   - Published releases
+   - Manual workflow dispatch
+
+2. **Process**:
+   - Runs full test suite on multiple Ruby versions
+   - Builds the gem with updated version
+   - Publishes to GitHub Packages
+   - Publishes to RubyGems.org (for releases only)
+   - Creates GitHub release with assets
+
+### Package Distribution
+
+- **GitHub Packages**: All releases and tags
+- **RubyGems.org**: Only official releases (requires `RUBYGEMS_API_KEY` secret)
+
 ### Release Checklist
 
 1. **Update version**: Modify `lib/lall/version.rb`
-2. **Update changelog**: Document all changes
-3. **Update documentation**: Ensure docs are current
-4. **Run full test suite**: All tests must pass
-5. **Build gem**: `gem build lall.gemspec`
-6. **Test installation**: Install and test the built gem
-7. **Create release**: Tag and create GitHub release
-8. **Publish gem**: `gem push lall-x.y.z.gem`
+2. **Update changelog**: Document all changes in `CHANGELOG.md`
+3. **Run tests locally**: `bundle exec rake test`
+4. **Build gem locally**: `gem build lall.gemspec`
+5. **Commit changes**: `git commit -m "Bump version to x.y.z"`
+6. **Create release**: Use GitHub UI or push tag
+7. **Verify publication**: Check GitHub Packages and/or RubyGems.org
 
 ### Changelog Format
 

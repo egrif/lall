@@ -13,6 +13,7 @@ coverage/
 pry_history
 .env
 .env.*
+.gitallowed
 # Ignore RubyMine/JetBrains IDE files
 .idea/
 # Ignore VSCode settings

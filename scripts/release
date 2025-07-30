@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# Release script for lall gem
+# Usage: ./scripts/release VERSION
+
+set -e
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 VERSION"
+    echo "Example: $0 1.0.0"
+    exit 1
+fi
+
+VERSION="$1"
+CURRENT_BRANCH=$(git branch --show-current)
+
+if [ "$CURRENT_BRANCH" != "main" ]; then
+    echo "❌ Must be on main branch to release. Current branch: $CURRENT_BRANCH"
+    exit 1
+fi
+
+if ! git diff --quiet; then
+    echo "❌ Working directory is not clean. Please commit or stash changes."
+    exit 1
+fi
+
+echo "🚀 Preparing release v$VERSION..."
+
+# Update version in version.rb
+echo "📝 Updating version to $VERSION..."
+sed -i.bak "s/VERSION = \".*\"/VERSION = \"$VERSION\"/" lib/lall/version.rb
+rm lib/lall/version.rb.bak
+
+# Run tests to make sure everything works
+echo "🧪 Running tests..."
+bundle exec rake test
+
+if [ $? -ne 0 ]; then
+    echo "❌ Tests failed. Aborting release."
+    git checkout lib/lall/version.rb
+    exit 1
+fi
+
+# Build gem to validate
+echo "📦 Building gem..."
+gem build lall.gemspec
+
+if [ $? -ne 0 ]; then
+    echo "❌ Gem build failed. Aborting release."
+    git checkout lib/lall/version.rb
+    exit 1
+fi
+
+# Clean up built gem (will be rebuilt by CI)
+rm -f lall-*.gem
+
+echo "✅ Pre-release checks passed!"
+echo ""
+echo "Next steps:"
+echo "1. Review and commit the version change:"
+echo "   git add lib/lall/version.rb"
+echo "   git commit -m \"Bump version to $VERSION\""
+echo ""
+echo "2. Create and push the tag:"
+echo "   git tag v$VERSION"
+echo "   git push origin main --tags"
+echo ""
+echo "3. Or create a release on GitHub:"
+echo "   https://github.com/egrif/lall/releases/new"
+echo ""
+echo "The GitHub Action will automatically build and publish the gem."

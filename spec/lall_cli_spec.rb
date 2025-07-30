@@ -108,6 +108,28 @@ RSpec.describe LallCLI do
       end
     end
 
+    context 'with list groups functionality' do
+      it 'prints available groups when -g list is used' do
+        cli = LallCLI.new(['-g', 'list'])
+
+        expected_output = <<~OUTPUT
+          Available groups:
+            test: test-env1, test-env2
+            staging: staging, staging-s2, staging-s3
+            prod-us: prod, prod-s2, prod-s3, prod-s4, prod-s5
+            integration: integration-env1, integration-env2, integration-env3
+        OUTPUT
+
+        expect { cli.run }.to output(expected_output).to_stdout
+      end
+
+      it 'does not require string option when using -g list' do
+        cli = LallCLI.new(['-g', 'list'])
+
+        expect { cli.run }.not_to raise_error
+      end
+    end
+
     context 'with valid arguments' do
       before do
         # Mock the external lotus command calls

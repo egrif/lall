@@ -44,7 +44,8 @@ class LallCLI
       @options[:env] = v
     end
     opts.on('-gGROUP', '--group=GROUP',
-            'Group name to use a related list of environments (mutually exclusive with -e)') do |v|
+            'Group name to use a related list of environments (mutually exclusive with -e)',
+            'Use "list" to see available groups') do |v|
       @options[:group] = v
     end
   end
@@ -70,6 +71,12 @@ class LallCLI
   public
 
   def run
+    # Handle special case: -g list
+    if @options[:group] == 'list'
+      print_available_groups
+      return
+    end
+
     validate_options
     envs = resolve_environments
     ping_environments(envs)
@@ -78,6 +85,13 @@ class LallCLI
   end
 
   private
+
+  def print_available_groups
+    puts 'Available groups:'
+    ENV_GROUPS.each do |group_name, environments|
+      puts "  #{group_name}: #{environments.join(', ')}"
+    end
+  end
 
   def validate_options
     return if valid_option_combination?
@@ -88,6 +102,9 @@ class LallCLI
   end
 
   def valid_option_combination?
+    # Special case: allow -g list without string requirement
+    return true if @options[:group] == 'list'
+
     @options[:string] &&
       (@options[:env] || @options[:group]) &&
       !(@options[:env] && @options[:group])

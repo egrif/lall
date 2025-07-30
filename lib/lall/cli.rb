@@ -108,6 +108,8 @@ class LallCLI
     resolved
   end
 
+  public
+
   def run
     # Initialize cache manager
     initialize_cache_manager

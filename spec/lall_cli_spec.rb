@@ -237,7 +237,6 @@ RSpec.describe LallCLI do
         anything,
         anything,
         anything,
-        anything,
         hash_including(env: 'env1')
       )
 
@@ -252,8 +251,7 @@ RSpec.describe LallCLI do
         'token',
         [],
         [],
-        true, # insensitive
-        hash_including(env: 'env1', expose: true, debug: true)
+        hash_including(env: 'env1', expose: true, insensitive: true)
       )
 
       cli.send(:fetch_env_results, ['env1'])

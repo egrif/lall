@@ -7,7 +7,8 @@ Gem::Specification.new do |spec|
   spec.email         = ['your.email@example.com']
 
   spec.summary       = 'LOTUS environment comparison CLI using lotus.'
-  spec.description   = 'A Ruby CLI tool for comparing LOTUS configuration values across multiple environments, using the lotus command to fetch environment data.'
+  spec.description   = 'A Ruby CLI tool for comparing LOTUS configuration values across multiple ' \
+                       'environments, using the lotus command to fetch environment data.'
   spec.homepage      = 'https://github.com/egrif/lall'
   spec.license       = 'MIT'
 

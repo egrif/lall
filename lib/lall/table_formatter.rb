@@ -14,47 +14,58 @@ class TableFormatter
 
   def compute_col_widths
     if @path_also
-      @columns.map do |col|
-        header_str = "#{col[:path]}.#{col[:key]}"
-        max_data = @envs.map do |env|
-          match = @env_results[env].find { |r| r[:path] == col[:path] && r[:key] == col[:key] }
-          value_str = if match
-                        match[:value].is_a?(String) ? match[:value] : match[:value].inspect
-                      else
-                        ''
-                      end
-          trunc_len = @truncate ? [@truncate, header_str.length].max : nil
-          if trunc_len
-            [header_str.length,
-             TableFormatter.truncate_middle(value_str,
-                                            trunc_len).length].max
-          else
-            [header_str.length, value_str.length].max
-          end
-        end.max
-        [header_str.length, max_data].max
-      end
+      compute_path_key_col_widths
     else
-      @columns.map do |k|
-        header_str = k.to_s
-        max_data = @envs.map do |env|
-          match = @env_results[env].find { |r| r[:key] == k }
-          value_str = if match
-                        match[:value].is_a?(String) ? match[:value] : match[:value].inspect
-                      else
-                        ''
-                      end
-          trunc_len = @truncate ? [@truncate, header_str.length].max : nil
-          if trunc_len
-            [header_str.length,
-             TableFormatter.truncate_middle(value_str,
-                                            trunc_len).length].max
-          else
-            [header_str.length, value_str.length].max
-          end
-        end.max
-        [header_str.length, max_data].max
-      end
+      compute_key_col_widths
+    end
+  end
+
+  def compute_path_key_col_widths
+    @columns.map do |col|
+      header_str = "#{col[:path]}.#{col[:key]}"
+      max_data_width = calculate_max_data_width_for_path_key(col, header_str)
+      [header_str.length, max_data_width].max
+    end
+  end
+
+  def compute_key_col_widths
+    @columns.map do |k|
+      header_str = k.to_s
+      max_data_width = calculate_max_data_width_for_key(k, header_str)
+      [header_str.length, max_data_width].max
+    end
+  end
+
+  def calculate_max_data_width_for_path_key(col, header_str)
+    @envs.map do |env|
+      match = @env_results[env].find { |r| r[:path] == col[:path] && r[:key] == col[:key] }
+      calculate_value_width(match, header_str)
+    end.max
+  end
+
+  def calculate_max_data_width_for_key(key, header_str)
+    @envs.map do |env|
+      match = @env_results[env].find { |r| r[:key] == key }
+      calculate_value_width(match, header_str)
+    end.max
+  end
+
+  def calculate_value_width(match, header_str)
+    value_str = extract_value_string(match)
+    trunc_len = @truncate ? [@truncate, header_str.length].max : nil
+
+    if trunc_len
+      [header_str.length, TableFormatter.truncate_middle(value_str, trunc_len).length].max
+    else
+      [header_str.length, value_str.length].max
+    end
+  end
+
+  def extract_value_string(match)
+    if match
+      match[:value].is_a?(String) ? match[:value] : match[:value].inspect
+    else
+      ''
     end
   end
 
@@ -89,7 +100,7 @@ class TableFormatter
     @columns.each_with_index { |_, i| sep += "-#{'-' * col_widths[i]}-|" }
     puts sep
     @envs.each do |env|
-      row = "| %-#{@env_width}s |" % env
+      row = format("| %-#{@env_width}s |", env)
       if @path_also
         @columns.each_with_index do |col, i|
           match = @env_results[env].find { |r| r[:path] == col[:path] && r[:key] == col[:key] }
@@ -99,7 +110,7 @@ class TableFormatter
                         ''
                       end
           value_str = TableFormatter.truncate_middle(value_str, col_widths[i]) if @truncate
-          row += " %-#{col_widths[i]}s |" % value_str
+          row += format(" %-#{col_widths[i]}s |", value_str)
         end
       else
         @columns.each_with_index do |k, i|
@@ -110,7 +121,7 @@ class TableFormatter
                         ''
                       end
           value_str = TableFormatter.truncate_middle(value_str, col_widths[i]) if @truncate
-          row += " %-#{col_widths[i]}s |" % value_str
+          row += format(" %-#{col_widths[i]}s |", value_str)
         end
       end
       puts row
@@ -128,7 +139,7 @@ class TableFormatter
 
     # Header
     header = format("| %-#{path_width}s | %-#{key_width}s |", 'Path', 'Key')
-    envs.each_with_index { |env, i| header += " %-#{env_widths[i]}s |" % env }
+    envs.each_with_index { |env, i| header += format(" %-#{env_widths[i]}s |", env) }
     puts header
     sep = "|-#{'-' * path_width}-|-#{'-' * key_width}-|"
     envs.each_with_index { |_, i| sep += "-#{'-' * env_widths[i]}-|" }
@@ -145,7 +156,7 @@ class TableFormatter
                         ''
                       end
           value_str = TableFormatter.truncate_middle(value_str, @options[:truncate]) if @options[:truncate]
-          row += " %-#{env_widths[i]}s |" % value_str
+          row += format(" %-#{env_widths[i]}s |", value_str)
         end
         # Only print rows where at least one env has a value
         puts row unless envs.all? { |env| env_results[env].none? { |r| r[:path] == path && r[:key] == key } }
@@ -163,7 +174,7 @@ class TableFormatter
 
     # Header
     header = format("| %-#{key_width}s |", 'Key')
-    envs.each_with_index { |env, i| header += " %-#{env_widths[i]}s |" % env }
+    envs.each_with_index { |env, i| header += format(" %-#{env_widths[i]}s |", env) }
     puts header
     sep = "|-#{'-' * key_width}-|"
     envs.each_with_index { |_, i| sep += "-#{'-' * env_widths[i]}-|" }
@@ -179,7 +190,7 @@ class TableFormatter
                       ''
                     end
         value_str = TableFormatter.truncate_middle(value_str, @options[:truncate]) if @options[:truncate]
-        row += " %-#{env_widths[i]}s |" % value_str
+        row += format(" %-#{env_widths[i]}s |", value_str)
       end
       # Only print rows where at least one env has a value
       puts row unless envs.all? { |env| env_results[env].none? { |r| r[:key] == key } }

@@ -198,7 +198,7 @@ RSpec.describe KeySearcher do
       it 'performs case-insensitive search when insensitive is true' do
         # This test shows what the behavior should be, but the current implementation
         # doesn't actually implement case-insensitive matching
-        results = KeySearcher.search(yaml_data, 'API_TOKEN', [], [], true)
+        results = KeySearcher.search(yaml_data, 'API_TOKEN', [], [], insensitive: true)
 
         # Currently this will be empty, but ideally should find the match
         expect(results).to be_empty

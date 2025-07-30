@@ -17,6 +17,7 @@ A Ruby CLI tool for comparing YAML configuration values across multiple environm
   - [Output Formats](#output-formats)
   - [Secret Management](#secret-management)
 - [Examples](#examples)
+- [Caching](#caching)
 - [Configuration](#configuration)
 - [Development](#development)
 - [Testing](#testing)
@@ -35,6 +36,11 @@ A Ruby CLI tool for comparing YAML configuration values across multiple environm
 - **Environment groups**: Pre-configured groups of environments for quick multi-env queries
 - **Secret management**: Optionally expose actual secret values with the `-x/--expose` flag
 - **Performance optimized**: Threaded parallel fetching of environment data and secrets
+- **Advanced caching system**: 
+  - Redis backend (if `REDIS_URL` available) with disk fallback
+  - Encrypted secret storage using AES-256-GCM
+  - Configurable TTL and cache directories
+  - Cache management commands (`--cache-stats`, `--clear-cache`, etc.)
 - **Customizable output**: Truncation control, case-insensitive search options
 - **Debug support**: Built-in debugging capabilities with detailed command output
 - **Modular architecture**: Clean, maintainable code following Single Responsibility Principle
@@ -43,9 +49,10 @@ A Ruby CLI tool for comparing YAML configuration values across multiple environm
 
 ### Prerequisites
 
-- Ruby 2.7 or higher
+- Ruby 3.1 or higher
 - The `lotus` command must be available in your PATH
 - Access to the target environments through the lotus CLI
+- Optional: Redis server for enhanced caching performance
 
 ### Install from GitHub Packages
 
@@ -78,7 +85,7 @@ git clone https://github.com/egrif/lall.git
 cd lall
 bundle install
 gem build lall.gemspec
-gem install lall-0.1.0.gem
+gem install lall-0.2.0.gem
 ```
 
 ### Development installation
@@ -116,6 +123,11 @@ lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
 | `-t[LEN]` | `--truncate[=LEN]` | Truncate values longer than LEN characters | `40` |
 | `-x` | `--expose` | Expose actual secret values (fetches from lotus) | `false` |
 | `-d` | `--debug` | Enable debug output (shows lotus commands) | `false` |
+| | `--cache-ttl=SECONDS` | Set cache TTL in seconds | `3600` |
+| | `--cache-dir=PATH` | Set cache directory path | `~/.lall/cache` |
+| | `--no-cache` | Disable caching for this request | `false` |
+| | `--clear-cache` | Clear all cache entries and exit | |
+| | `--cache-stats` | Show cache statistics and exit | |
 
 ### Environment Groups
 
@@ -222,6 +234,25 @@ lall -s database_url -g prod-us -t20
 lall -s config* -e prod -p -v
 ```
 
+### Caching Examples
+
+```bash
+# Enable caching with custom TTL (2 hours)
+lall -s database_* -e prod --cache-ttl=7200
+
+# Use custom cache directory for isolation
+lall -s secrets_* -e prod --cache-dir=/secure/cache
+
+# Disable caching for real-time sensitive data
+lall -s current_timestamp -e prod --no-cache
+
+# View cache performance statistics
+lall --cache-stats
+
+# Clear all cached data before fresh scan
+lall --clear-cache && lall -s '*' -g prod-all
+```
+
 ### Wildcard Patterns
 
 ```bash
@@ -237,6 +268,45 @@ lall -s database_*_timeout -e prod
 # Multiple wildcards: complex pattern matching
 lall -s *_database_*_config -e prod
 ```
+
+## Caching
+
+Lall includes an advanced caching system to improve performance when searching across multiple environments. The cache stores search results temporarily, reducing the need to re-query configuration sources.
+
+### Cache Backends
+
+- **Redis (Primary)**: Fast in-memory caching with support for TTL
+- **Disk (Fallback)**: File-based caching when Redis is unavailable
+
+### Security
+
+All cached data is encrypted using AES-256-GCM encryption. A unique encryption key is generated per session and stored securely.
+
+### Cache Configuration
+
+```bash
+# Set custom cache TTL (default: 1 hour)
+lall -s database -e prod --cache-ttl=7200
+
+# Use custom cache directory
+lall -s database -e prod --cache-dir=/tmp/my-cache
+
+# Disable caching for sensitive operations
+lall -s secrets -e prod --no-cache
+
+# Clear all cached data
+lall --clear-cache
+
+# View cache statistics
+lall --cache-stats
+```
+
+### Cache Management
+
+- Cache entries automatically expire based on TTL
+- Cache keys are generated from search parameters (string, environments, options)
+- Cached results are validated against current configuration state
+- Failed cache operations gracefully fallback to direct queries
 
 ## Configuration
 

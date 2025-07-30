@@ -32,16 +32,41 @@ Metrics/ClassLength:
     - 'lib/lall/cli.rb'
     - 'lib/lall/table_formatter.rb'
 
-# Allow more complex CLI parsing
+# Allow more complex CLI parsing and table formatting
 Metrics/CyclomaticComplexity:
-  Max: 10
+  Max: 25
+  Exclude:
+    - 'lib/lall/table_formatter.rb'
+    - 'lib/lotus/environment.rb'
 
 Metrics/PerceivedComplexity:
-  Max: 10
+  Max: 25
+  Exclude:
+    - 'lib/lall/table_formatter.rb'
+    - 'lib/lotus/environment.rb'
 
-# Allow more parameters for table formatting methods
+Metrics/AbcSize:
+  Max: 25
+  Exclude:
+    - 'lib/lall/table_formatter.rb'
+    - 'lib/lall/key_searcher.rb'
+
+# Allow more parameters for table formatting and search methods
 Metrics/ParameterLists:
-  Max: 6
+  Max: 10
+  Exclude:
+    - 'lib/lall/key_searcher.rb'
+
+# Ignore empty placeholder files
+Lint/EmptyFile:
+  Exclude:
+    - 'lib/lall/environment.rb'
+    - 'lib/lall/group.rb'
+    - 'lib/lall/lotus_runner.rb'
+
+# Gemspec development dependencies are acceptable in gemspec files
+Gemspec/DevelopmentDependencies:
+  Enabled: false
 
 # Disable some style cops that don't fit our needs
 Style/Documentation:

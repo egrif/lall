@@ -61,33 +61,36 @@ jobs:
 
     - name: Create GitHub Release
       if: steps.check-tag.outputs.exists == 'false'
-      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: v${{ steps.current-version.outputs.version }}
-        release_name: Release v${{ steps.current-version.outputs.version }}
-        body: |
-          ${{ steps.commit-info.outputs.message }}
-          
-          ## Installation
-          
-          ### From GitHub Packages
-          ```bash
-          gem install lall --source "https://rubygems.pkg.github.com/egrif"
-          ```
-          
-          ### From RubyGems.org (after manual publish)
-          ```bash
-          gem install lall
-          ```
-          
-          ## Usage
-          
-          ```bash
-          lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
-          ```
-          
-          See [README.md](README.md) for complete documentation and [CHANGELOG.md](CHANGELOG.md) for detailed changes.
-        draft: false
-        prerelease: false
+      run: |
+        TAG_NAME="v${{ steps.current-version.outputs.version }}"
+        RELEASE_BODY=$(cat << 'EOF'
+        ${{ steps.commit-info.outputs.message }}
+        
+        ## Installation
+        
+        ### From GitHub Packages
+        ```bash
+        gem install lall --source "https://rubygems.pkg.github.com/egrif"
+        ```
+        
+        ### From RubyGems.org (after manual publish)
+        ```bash
+        gem install lall
+        ```
+        
+        ## Usage
+        
+        ```bash
+        lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
+        ```
+        
+        See [README.md](README.md) for complete documentation and [CHANGELOG.md](CHANGELOG.md) for detailed changes.
+        EOF
+        )
+        
+        gh release create "$TAG_NAME" \
+          --title "Release $TAG_NAME" \
+          --notes "$RELEASE_BODY" \
+          --latest

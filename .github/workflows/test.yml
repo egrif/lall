@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        ruby-version: ['2.7', '3.0', '3.1', '3.2']
+        ruby-version: ['3.1', '3.2', '3.3']
 
     steps:
     - uses: actions/checkout@v4
@@ -22,6 +22,13 @@ jobs:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
 
+    - name: Debug bundle info
+      run: |
+        echo "Ruby version: $(ruby --version)"
+        echo "Bundler version: $(bundle --version)"
+        echo "Gem environment:"
+        gem env
+
     - name: Run unit tests
       run: bundle exec rake spec
 
@@ -30,11 +37,11 @@ jobs:
 
     - name: Check code style
       run: bundle exec rubocop
-      if: matrix.ruby-version == '3.2'
+      if: matrix.ruby-version == '3.3'
 
     - name: Build gem (validation)
       run: gem build lall.gemspec
-      if: matrix.ruby-version == '3.2'
+      if: matrix.ruby-version == '3.3'
 
     - name: Generate coverage report
       run: |
@@ -42,7 +49,7 @@ jobs:
         if [ -f coverage/coverage.json ]; then
           echo "Coverage report generated"
         fi
-      if: matrix.ruby-version == '3.2'
+      if: matrix.ruby-version == '3.3'
 
   security:
     runs-on: ubuntu-latest
@@ -52,7 +59,7 @@ jobs:
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: '3.2'
+        ruby-version: '3.3'
         bundler-cache: true
 
     - name: Run bundle audit
@@ -68,7 +75,7 @@ jobs:
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: '3.2'
+        ruby-version: '3.3'
         bundler-cache: true
 
     - name: Lint with RuboCop

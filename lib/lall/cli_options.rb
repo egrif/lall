@@ -20,7 +20,7 @@ module Cli
       @options[:truncate] = DEFAULTS[:truncate] if opts.key?(:truncate) && opts[:truncate].nil?
     end
 
-    def method_missing(name, *args, &block)
+    def method_missing(name, *args, &)
       if @options.key?(name)
         @options[name]
       else

@@ -24,7 +24,7 @@ Gem::Specification.new do |spec|
   spec.files         = Dir['lib/**/*.rb'] + ['README.md', 'bin/lall', 'config/settings.yml']
   spec.executables   = ['lall']
   spec.require_paths = ['lib']
-  spec.required_ruby_version = '>= 2.7.0'
+  spec.required_ruby_version = '>= 3.1.0'
 
   spec.add_dependency 'open3', '~> 0.2'
   spec.add_dependency 'optparse', '~> 0.6'

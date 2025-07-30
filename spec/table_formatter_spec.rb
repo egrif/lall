@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe TableFormatter do
-  let(:envs) { ['env1', 'env2'] }
+  let(:envs) { %w[env1 env2] }
   let(:env_results) do
     {
       'env1' => [
@@ -47,9 +47,9 @@ RSpec.describe TableFormatter do
 
   describe '#initialize' do
     it 'sets instance variables correctly' do
-      columns = ['api_token', 'timeout']
+      columns = %w[api_token timeout]
       formatter = TableFormatter.new(columns, envs, env_results, options)
-      
+
       expect(formatter.instance_variable_get(:@columns)).to eq(columns)
       expect(formatter.instance_variable_get(:@envs)).to eq(envs)
       expect(formatter.instance_variable_get(:@env_results)).to eq(env_results)
@@ -57,21 +57,21 @@ RSpec.describe TableFormatter do
     end
 
     it 'calculates environment width correctly' do
-      formatter = TableFormatter.new([], ['short', 'very_long_env'], env_results, options)
+      formatter = TableFormatter.new([], %w[short very_long_env], env_results, options)
       env_width = formatter.instance_variable_get(:@env_width)
-      
+
       expect(env_width).to eq('very_long_env'.length)
     end
   end
 
   describe '#compute_col_widths' do
     context 'without path_also option' do
-      let(:columns) { ['api_token', 'timeout'] }
+      let(:columns) { %w[api_token timeout] }
       let(:formatter) { TableFormatter.new(columns, envs, env_results, options) }
 
       it 'computes column widths based on header and data' do
         widths = formatter.compute_col_widths
-        
+
         expect(widths.length).to eq(2)
         expect(widths[0]).to be >= 'api_token'.length
         expect(widths[1]).to be >= 'timeout'.length
@@ -81,7 +81,7 @@ RSpec.describe TableFormatter do
         truncated_options = options.merge(truncate: 5)
         formatter = TableFormatter.new(columns, envs, env_results, truncated_options)
         widths = formatter.compute_col_widths
-        
+
         # Width should be at least the header length even with truncation
         expect(widths[0]).to be >= 'api_token'.length
       end
@@ -99,7 +99,7 @@ RSpec.describe TableFormatter do
 
       it 'computes widths using path.key format' do
         widths = formatter.compute_col_widths
-        
+
         expect(widths.length).to eq(2)
         expect(widths[0]).to be >= 'configs.api_token.api_token'.length
       end
@@ -108,13 +108,13 @@ RSpec.describe TableFormatter do
 
   describe '#build_header' do
     context 'without path_also option' do
-      let(:columns) { ['api_token', 'timeout'] }
+      let(:columns) { %w[api_token timeout] }
       let(:formatter) { TableFormatter.new(columns, envs, env_results, options) }
 
       it 'builds header with environment and key columns' do
         col_widths = [10, 8]
         header = formatter.build_header(col_widths)
-        
+
         expect(header).to include('Env')
         expect(header).to include('api_token')
         expect(header).to include('timeout')
@@ -135,7 +135,7 @@ RSpec.describe TableFormatter do
       it 'builds header with path.key format' do
         col_widths = [20, 15]
         header = formatter.build_header(col_widths)
-        
+
         expect(header).to include('configs.api_token.api_token')
         expect(header).to include('configs.timeout.timeout')
       end
@@ -143,7 +143,7 @@ RSpec.describe TableFormatter do
   end
 
   describe '#print_table' do
-    let(:columns) { ['api_token', 'timeout'] }
+    let(:columns) { %w[api_token timeout] }
     let(:formatter) { TableFormatter.new(columns, envs, env_results, options) }
 
     it 'prints formatted table to stdout' do
@@ -175,7 +175,7 @@ RSpec.describe TableFormatter do
 
   describe '#print_key_table' do
     let(:formatter) { TableFormatter.new([], envs, env_results, options) }
-    let(:all_keys) { ['api_token', 'timeout'] }
+    let(:all_keys) { %w[api_token timeout] }
 
     it 'prints key-based table' do
       expect { formatter.print_key_table(all_keys, envs, env_results) }.to output(/Key.*env1.*env2/).to_stdout
@@ -187,7 +187,7 @@ RSpec.describe TableFormatter do
         'env1' => [],
         'env2' => []
       }
-      
+
       output = capture_stdout { formatter.print_key_table(all_keys, envs, empty_env_results) }
       # Should only contain header and separator, no data rows
       lines = output.split("\n")
@@ -198,7 +198,7 @@ RSpec.describe TableFormatter do
   describe '#print_path_table' do
     let(:formatter) { TableFormatter.new([], envs, env_results, options) }
     let(:all_paths) { ['configs.api_token', 'configs.timeout'] }
-    let(:all_keys) { ['api_token', 'timeout'] }
+    let(:all_keys) { %w[api_token timeout] }
 
     it 'prints path and key based table' do
       expect { formatter.print_path_table(all_paths, all_keys, envs, env_results) }.to output(/Path.*Key.*env1.*env2/).to_stdout

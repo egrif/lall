@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # lib/lall/table_formatter.rb
 class TableFormatter
   def initialize(columns, envs, env_results, options)
@@ -7,7 +9,7 @@ class TableFormatter
     @options = options
     @truncate = options[:truncate]
     @path_also = options[:path_also]
-    @env_width = ["Env".length, *envs.map(&:length)].max
+    @env_width = ['Env'.length, *envs.map(&:length)].max
   end
 
   def compute_col_widths
@@ -16,9 +18,19 @@ class TableFormatter
         header_str = "#{col[:path]}.#{col[:key]}"
         max_data = @envs.map do |env|
           match = @env_results[env].find { |r| r[:path] == col[:path] && r[:key] == col[:key] }
-          value_str = match ? (match[:value].is_a?(String) ? match[:value] : match[:value].inspect) : ""
+          value_str = if match
+                        match[:value].is_a?(String) ? match[:value] : match[:value].inspect
+                      else
+                        ''
+                      end
           trunc_len = @truncate ? [@truncate, header_str.length].max : nil
-          trunc_len ? [header_str.length, TableFormatter.truncate_middle(value_str, trunc_len).length].max : [header_str.length, value_str.length].max
+          if trunc_len
+            [header_str.length,
+             TableFormatter.truncate_middle(value_str,
+                                            trunc_len).length].max
+          else
+            [header_str.length, value_str.length].max
+          end
         end.max
         [header_str.length, max_data].max
       end
@@ -27,9 +39,19 @@ class TableFormatter
         header_str = k.to_s
         max_data = @envs.map do |env|
           match = @env_results[env].find { |r| r[:key] == k }
-          value_str = match ? (match[:value].is_a?(String) ? match[:value] : match[:value].inspect) : ""
+          value_str = if match
+                        match[:value].is_a?(String) ? match[:value] : match[:value].inspect
+                      else
+                        ''
+                      end
           trunc_len = @truncate ? [@truncate, header_str.length].max : nil
-          trunc_len ? [header_str.length, TableFormatter.truncate_middle(value_str, trunc_len).length].max : [header_str.length, value_str.length].max
+          if trunc_len
+            [header_str.length,
+             TableFormatter.truncate_middle(value_str,
+                                            trunc_len).length].max
+          else
+            [header_str.length, value_str.length].max
+          end
         end.max
         [header_str.length, max_data].max
       end
@@ -39,6 +61,7 @@ class TableFormatter
   def self.truncate_middle(str, max_len)
     return str if str.length <= max_len
     return str if max_len < 5
+
     half = (max_len - 3) / 2
     first = str[0, half]
     last = str[-half, half]
@@ -46,14 +69,14 @@ class TableFormatter
   end
 
   def build_header(col_widths)
-    header = "| %-#{@env_width}s |" % "Env"
+    header = format("| %-#{@env_width}s |", 'Env')
     if @path_also
       @columns.each_with_index do |col, i|
-        header += " %-#{col_widths[i]}s |" % ["#{col[:path]}.#{col[:key]}"]
+        header += format(" %-#{col_widths[i]}s |", "#{col[:path]}.#{col[:key]}")
       end
     else
       @columns.each_with_index do |k, i|
-        header += " %-#{col_widths[i]}s |" % [k.to_s]
+        header += format(" %-#{col_widths[i]}s |", k.to_s)
       end
     end
     header
@@ -70,15 +93,23 @@ class TableFormatter
       if @path_also
         @columns.each_with_index do |col, i|
           match = @env_results[env].find { |r| r[:path] == col[:path] && r[:key] == col[:key] }
-          value_str = match ? (match[:value].is_a?(String) ? match[:value] : match[:value].inspect) : ""
-          value_str = @truncate ? TableFormatter.truncate_middle(value_str, col_widths[i]) : value_str
+          value_str = if match
+                        match[:value].is_a?(String) ? match[:value] : match[:value].inspect
+                      else
+                        ''
+                      end
+          value_str = TableFormatter.truncate_middle(value_str, col_widths[i]) if @truncate
           row += " %-#{col_widths[i]}s |" % value_str
         end
       else
         @columns.each_with_index do |k, i|
           match = @env_results[env].find { |r| r[:key] == k }
-          value_str = match ? (match[:value].is_a?(String) ? match[:value] : match[:value].inspect) : ""
-          value_str = @truncate ? TableFormatter.truncate_middle(value_str, col_widths[i]) : value_str
+          value_str = if match
+                        match[:value].is_a?(String) ? match[:value] : match[:value].inspect
+                      else
+                        ''
+                      end
+          value_str = TableFormatter.truncate_middle(value_str, col_widths[i]) if @truncate
           row += " %-#{col_widths[i]}s |" % value_str
         end
       end
@@ -87,12 +118,16 @@ class TableFormatter
   end
 
   def print_path_table(all_paths, all_keys, envs, env_results)
-    path_width = ["Path".length, *all_paths.map(&:length)].max
-    key_width = ["Key".length, *all_keys.map(&:length)].max
-    env_widths = envs.map { |env| [env.length, *env_results[env].map { |r| (r[:value].is_a?(String) ? r[:value] : r[:value].inspect).length }].max }
+    path_width = ['Path'.length, *all_paths.map(&:length)].max
+    key_width = ['Key'.length, *all_keys.map(&:length)].max
+    env_widths = envs.map do |env|
+      [env.length, *env_results[env].map do |r|
+        (r[:value].is_a?(String) ? r[:value] : r[:value].inspect).length
+      end].max
+    end
 
     # Header
-    header = "| %-#{path_width}s | %-#{key_width}s |" % ["Path", "Key"]
+    header = format("| %-#{path_width}s | %-#{key_width}s |", 'Path', 'Key')
     envs.each_with_index { |env, i| header += " %-#{env_widths[i]}s |" % env }
     puts header
     sep = "|-#{'-' * path_width}-|-#{'-' * key_width}-|"
@@ -101,27 +136,33 @@ class TableFormatter
 
     all_paths.each do |path|
       all_keys.each do |key|
-        row = "| %-#{path_width}s | %-#{key_width}s |" % [path, key]
+        row = format("| %-#{path_width}s | %-#{key_width}s |", path, key)
         envs.each_with_index do |env, i|
           match = env_results[env].find { |r| r[:path] == path && r[:key] == key }
-          value_str = match ? (match[:value].is_a?(String) ? match[:value] : match[:value].inspect) : ""
-          value_str = @options[:truncate] ? TableFormatter.truncate_middle(value_str, @options[:truncate]) : value_str
+          value_str = if match
+                        match[:value].is_a?(String) ? match[:value] : match[:value].inspect
+                      else
+                        ''
+                      end
+          value_str = TableFormatter.truncate_middle(value_str, @options[:truncate]) if @options[:truncate]
           row += " %-#{env_widths[i]}s |" % value_str
         end
         # Only print rows where at least one env has a value
-        unless envs.all? { |env| env_results[env].none? { |r| r[:path] == path && r[:key] == key } }
-          puts row
-        end
+        puts row unless envs.all? { |env| env_results[env].none? { |r| r[:path] == path && r[:key] == key } }
       end
     end
   end
 
   def print_key_table(all_keys, envs, env_results)
-    key_width = ["Key".length, *all_keys.map(&:length)].max
-    env_widths = envs.map { |env| [env.length, *env_results[env].map { |r| (r[:value].is_a?(String) ? r[:value] : r[:value].inspect).length }].max }
+    key_width = ['Key'.length, *all_keys.map(&:length)].max
+    env_widths = envs.map do |env|
+      [env.length, *env_results[env].map do |r|
+        (r[:value].is_a?(String) ? r[:value] : r[:value].inspect).length
+      end].max
+    end
 
     # Header
-    header = "| %-#{key_width}s |" % ["Key"]
+    header = format("| %-#{key_width}s |", 'Key')
     envs.each_with_index { |env, i| header += " %-#{env_widths[i]}s |" % env }
     puts header
     sep = "|-#{'-' * key_width}-|"
@@ -129,17 +170,19 @@ class TableFormatter
     puts sep
 
     all_keys.each do |key|
-      row = "| %-#{key_width}s |" % [key]
+      row = format("| %-#{key_width}s |", key)
       envs.each_with_index do |env, i|
         match = env_results[env].find { |r| r[:key] == key }
-        value_str = match ? (match[:value].is_a?(String) ? match[:value] : match[:value].inspect) : ""
-        value_str = @options[:truncate] ? TableFormatter.truncate_middle(value_str, @options[:truncate]) : value_str
+        value_str = if match
+                      match[:value].is_a?(String) ? match[:value] : match[:value].inspect
+                    else
+                      ''
+                    end
+        value_str = TableFormatter.truncate_middle(value_str, @options[:truncate]) if @options[:truncate]
         row += " %-#{env_widths[i]}s |" % value_str
       end
       # Only print rows where at least one env has a value
-      unless envs.all? { |env| env_results[env].none? { |r| r[:key] == key } }
-        puts row
-      end
+      puts row unless envs.all? { |env| env_results[env].none? { |r| r[:key] == key } }
     end
   end
 end

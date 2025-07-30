@@ -11,7 +11,7 @@ RSpec.describe Lotus::Environment do
         'api_token' => 'abc123'
       },
       'secrets' => {
-        'keys' => ['secret_key', 'api_secret']
+        'keys' => %w[secret_key api_secret]
       },
       'group_secrets' => {
         'keys' => ['shared_secret']
@@ -61,7 +61,7 @@ RSpec.describe Lotus::Environment do
   describe '#secret_keys' do
     it 'returns array of secret keys' do
       env = Lotus::Environment.new(yaml_hash)
-      expect(env.secret_keys).to eq(['secret_key', 'api_secret'])
+      expect(env.secret_keys).to eq(%w[secret_key api_secret])
     end
 
     it 'returns empty array when secrets is missing' do
@@ -70,7 +70,7 @@ RSpec.describe Lotus::Environment do
     end
 
     it 'returns empty array when secrets.keys is missing' do
-      env = Lotus::Environment.new({'secrets' => {}})
+      env = Lotus::Environment.new({ 'secrets' => {} })
       expect(env.secret_keys).to eq([])
     end
   end
@@ -132,7 +132,7 @@ RSpec.describe Lotus::Environment do
           region: 'custom-region',
           application: 'custom-app'
         )
-        
+
         expect(env.data['space']).to eq('custom-space')
         expect(env.data['region']).to eq('custom-region')
         expect(env.data['application']).to eq('custom-app')

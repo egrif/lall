@@ -12,7 +12,7 @@ RSpec.describe Lotus::Runner do
       end
 
       it 'returns prod as s_arg for staging environments' do
-        s_arg, r_arg = Lotus::Runner.get_lotus_args('staging-s2')
+        s_arg, = Lotus::Runner.get_lotus_args('staging-s2')
         expect(s_arg).to eq('prod')
       end
     end
@@ -68,7 +68,7 @@ RSpec.describe Lotus::Runner do
     end
 
     it 'includes region argument when applicable' do
-      allow(Lotus::Runner).to receive(:get_lotus_args).and_return(['prod', 'use1'])
+      allow(Lotus::Runner).to receive(:get_lotus_args).and_return(%w[prod use1])
       expect(Open3).to receive(:popen3).with(/lotus view -s \\prod -e \\test-env -a greenhouse -G -r \\use1/)
       Lotus::Runner.fetch_yaml('test-env')
     end
@@ -132,7 +132,7 @@ RSpec.describe Lotus::Runner do
 
     context 'with region' do
       before do
-        allow(Lotus::Runner).to receive(:get_lotus_args).and_return(['prod', 'use1'])
+        allow(Lotus::Runner).to receive(:get_lotus_args).and_return(%w[prod use1])
         allow(Open3).to receive(:popen3).and_yield(
           double('stdin'),
           double('stdout', read: 'SECRET_KEY=secret_value'),
@@ -177,8 +177,8 @@ RSpec.describe Lotus::Runner do
       allow(Lotus::Runner).to receive(:secret_get).with('test-env', 'key1').and_return('value1')
       allow(Lotus::Runner).to receive(:secret_get).with('test-env', 'key2').and_return('value2')
 
-      results = Lotus::Runner.secret_get_many('test-env', ['key1', 'key2'])
-      
+      results = Lotus::Runner.secret_get_many('test-env', %w[key1 key2])
+
       expect(results).to eq({ 'key1' => 'value1', 'key2' => 'value2' })
     end
 
@@ -186,8 +186,8 @@ RSpec.describe Lotus::Runner do
       allow(Lotus::Runner).to receive(:secret_get).with('test-env', 'key1').and_return('value1')
       allow(Lotus::Runner).to receive(:secret_get).with('test-env', 'key2').and_return(nil)
 
-      results = Lotus::Runner.secret_get_many('test-env', ['key1', 'key2'])
-      
+      results = Lotus::Runner.secret_get_many('test-env', %w[key1 key2])
+
       expect(results).to eq({ 'key1' => 'value1', 'key2' => nil })
     end
   end
@@ -196,14 +196,14 @@ RSpec.describe Lotus::Runner do
     it 'constructs correct ping command' do
       allow(Lotus::Runner).to receive(:get_lotus_args).and_return(['prod', nil])
       expect(Lotus::Runner).to receive(:system).with('lotus ping -s \\prod > /dev/null 2>&1')
-      
+
       Lotus::Runner.ping('prod-env')
     end
 
     it 'returns system command result' do
       allow(Lotus::Runner).to receive(:get_lotus_args).and_return(['test', nil])
       allow(Lotus::Runner).to receive(:system).and_return(true)
-      
+
       result = Lotus::Runner.ping('test-env')
       expect(result).to be true
     end

@@ -2,9 +2,9 @@ PATH
   remote: .
   specs:
     lall (0.1.0)
-      open3
-      optparse
-      yaml
+      open3 (~> 0.2)
+      optparse (~> 0.6)
+      yaml (~> 0.3)
 
 GEM
   remote: https://rubygems.org/

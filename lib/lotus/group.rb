@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Lotus
   class Group
     attr_reader :data

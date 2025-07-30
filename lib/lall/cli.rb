@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # lib/lall/cli.rb
 require 'optparse'
 require 'yaml'
@@ -7,7 +9,7 @@ require 'lotus/group'
 require_relative 'key_searcher'
 require_relative 'table_formatter'
 
-SETTINGS_PATH = File.expand_path('../../../config/settings.yml', __FILE__)
+SETTINGS_PATH = File.expand_path('../../config/settings.yml', __dir__)
 SETTINGS = YAML.load_file(SETTINGS_PATH)
 ENV_GROUPS = SETTINGS['groups']
 
@@ -15,32 +17,46 @@ class LallCLI
   def initialize(argv)
     @options = {}
     OptionParser.new do |opts|
-      opts.banner = "Usage: ruby lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [-p] [-i] [-v]"
-      opts.on('-sSTRING', '--string=STRING', 'String to search for in YAML keys (required)') { |v| @options[:string] = v }
-      opts.on('-eENV', '--env=ENV', 'Comma-separated environment(s) to search, e.g., prod,stage (mutually exclusive with -g)') { |v| @options[:env] = v }
-      opts.on('-gGROUP', '--group=GROUP', 'Group name to use a related list of environments (mutually exclusive with -e)') { |v| @options[:group] = v }
+      opts.banner = 'Usage: ruby lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [-p] [-i] [-v]'
+      opts.on('-sSTRING', '--string=STRING', 'String to search for in YAML keys (required)') do |v|
+        @options[:string] = v
+      end
+      opts.on('-eENV', '--env=ENV',
+              'Comma-separated environment(s) to search, e.g., prod,stage (mutually exclusive with -g)') do |v|
+        @options[:env] = v
+      end
+      opts.on('-gGROUP', '--group=GROUP',
+              'Group name to use a related list of environments (mutually exclusive with -e)') do |v|
+        @options[:group] = v
+      end
       opts.on('-p', '--path', 'Include the path column in the output table (optional)') { @options[:path_also] = true }
       opts.on('-i', '--insensitive', 'Case-insensitive key search (optional)') { @options[:insensitive] = true }
-      opts.on('-v', '--pivot', 'Pivot the table so environments are rows and keys/paths are columns (optional)') { @options[:pivot] = true }
-      opts.on('-t[LEN]', '--truncate[=LEN]', Integer, 'Truncate output values longer than LEN (default 40) with ellipsis in the middle') do |v|
+      opts.on('-v', '--pivot', 'Pivot the table so environments are rows and keys/paths are columns (optional)') do
+        @options[:pivot] = true
+      end
+      opts.on('-t[LEN]', '--truncate[=LEN]', Integer,
+              'Truncate output values longer than LEN (default 40) with ellipsis in the middle') do |v|
         @options[:truncate] = v.nil? ? 40 : v
       end
-      opts.on('-x', '--expose', 'Expose secrets (show actual secret values for secrets/group_secrets keys)') { @options[:expose] = true }
+      opts.on('-x', '--expose', 'Expose secrets (show actual secret values for secrets/group_secrets keys)') do
+        @options[:expose] = true
+      end
       opts.on('-d', '--debug', 'Enable debug output (prints lotus commands)') { @options[:debug] = true }
     end.parse!(argv)
   end
 
   def run
     if @options[:string].nil? || (@options[:env].nil? && @options[:group].nil?) || (@options[:env] && @options[:group])
-      puts "Usage: ruby lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [-p]"
-      puts "  -e and -g are mutually exclusive and one is required."
+      puts 'Usage: ruby lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [-p]'
+      puts '  -e and -g are mutually exclusive and one is required.'
       exit 1
     end
     envs = if @options[:group]
-      ENV_GROUPS[@options[:group]] || (puts("Unknown group: \\#{@options[:group]}"); exit 1)
-    else
-      @options[:env].split(',').map(&:strip)
-    end
+             ENV_GROUPS[@options[:group]] || (puts("Unknown group: #{@options[:group]}")
+                                              exit 1)
+           else
+             @options[:env].split(',').map(&:strip)
+           end
     # Ping each unique -s value before fetching results
     s_args = envs.map { |env| Lotus::Runner.get_lotus_args(env).first }.uniq
     s_args.each { |s_arg| Lotus::Runner.ping(s_arg) }
@@ -65,9 +81,8 @@ class LallCLI
   def fetch_env_results(envs)
     env_results = {}
     mutex = Mutex.new
-    threads = []
-    envs.each do |env|
-      threads << Thread.new do
+    threads = envs.map do |env|
+      Thread.new do
         yaml_data = Lotus::Runner.fetch_yaml(env)
         # Extract only the relevant top-level keys for searching
         search_data = {}

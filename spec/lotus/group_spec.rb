@@ -10,7 +10,7 @@ RSpec.describe Lotus::Group do
         'api_token' => 'abc123'
       },
       'secrets' => {
-        'keys' => ['secret_key', 'api_secret']
+        'keys' => %w[secret_key api_secret]
       }
     }
   end
@@ -37,7 +37,7 @@ RSpec.describe Lotus::Group do
   describe '#secrets' do
     it 'returns array of secret keys' do
       group = Lotus::Group.new(yaml_hash)
-      expect(group.secrets).to eq(['secret_key', 'api_secret'])
+      expect(group.secrets).to eq(%w[secret_key api_secret])
     end
 
     it 'returns empty array when secrets is missing' do
@@ -46,12 +46,12 @@ RSpec.describe Lotus::Group do
     end
 
     it 'returns empty array when secrets.keys is missing' do
-      group = Lotus::Group.new({'secrets' => {}})
+      group = Lotus::Group.new({ 'secrets' => {} })
       expect(group.secrets).to eq([])
     end
 
     it 'handles non-array secrets.keys' do
-      group = Lotus::Group.new({'secrets' => {'keys' => 'single_key'}})
+      group = Lotus::Group.new({ 'secrets' => { 'keys' => 'single_key' } })
       expect(group.secrets).to eq(['single_key'])
     end
   end

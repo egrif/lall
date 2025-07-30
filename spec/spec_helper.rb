@@ -22,13 +22,11 @@ RSpec.configure do |config|
 
   config.shared_context_metadata_behavior = :apply_to_host_groups
   config.filter_run_when_matching :focus
-  config.example_status_persistence_file_path = "spec/examples.txt"
+  config.example_status_persistence_file_path = 'spec/examples.txt'
   config.disable_monkey_patching!
   config.warnings = true
 
-  if config.files_to_run.one?
-    config.default_formatter = "doc"
-  end
+  config.default_formatter = 'doc' if config.files_to_run.one?
 
   config.profile_examples = 10
   config.order = :random
@@ -46,7 +44,7 @@ module SpecHelpers
         'timeout' => 30
       },
       'secrets' => {
-        'keys' => ['secret_key', 'api_secret']
+        'keys' => %w[secret_key api_secret]
       },
       'group_secrets' => {
         'keys' => ['shared_secret']
@@ -72,7 +70,7 @@ module SpecHelpers
         }
       },
       'secrets' => {
-        'keys' => ['db_password', 'jwt_secret', 'encryption_key']
+        'keys' => %w[db_password jwt_secret encryption_key]
       }
     }
   end

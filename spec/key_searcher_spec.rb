@@ -76,7 +76,7 @@ RSpec.describe KeySearcher do
     context 'with array index' do
       it 'includes index in path' do
         KeySearcher.handle_secret_match(
-          results, secret_jobs, ['secrets', 'keys'], 'secret_key', '{SECRET}', false, 'test-env', idx: 0
+          results, secret_jobs, %w[secrets keys], 'secret_key', '{SECRET}', false, 'test-env', idx: 0
         )
 
         expect(results).to eq([{ path: 'secrets.keys.0', key: 'secret_key', value: '{SECRET}' }])
@@ -107,7 +107,7 @@ RSpec.describe KeySearcher do
     context 'searching in hash structures' do
       it 'finds exact key matches' do
         results = KeySearcher.search(yaml_data, 'api_token')
-        
+
         expect(results.length).to eq(1)
         expect(results.first[:key]).to eq('api_token')
         expect(results.first[:value]).to eq('abc123')
@@ -116,7 +116,7 @@ RSpec.describe KeySearcher do
 
       it 'finds wildcard matches' do
         results = KeySearcher.search(yaml_data, 'api_*')
-        
+
         expect(results.length).to eq(2)
         keys = results.map { |r| r[:key] }
         expect(keys).to include('api_token', 'api_secret')
@@ -124,7 +124,7 @@ RSpec.describe KeySearcher do
 
       it 'finds multiple matches with wildcards' do
         results = KeySearcher.search(yaml_data, '*_*')
-        
+
         expect(results.length).to be >= 2
         keys = results.map { |r| r[:key] }
         expect(keys).to include('database_url', 'api_token')
@@ -134,14 +134,14 @@ RSpec.describe KeySearcher do
     context 'searching in array structures' do
       it 'finds matches in secret key arrays' do
         results = KeySearcher.search(yaml_data, 'secret_key')
-        
+
         secret_results = results.select { |r| r[:path].include?('secrets') }
         expect(secret_results).not_to be_empty
       end
 
       it 'finds wildcard matches in arrays' do
         results = KeySearcher.search(yaml_data, '*_secret')
-        
+
         expect(results.map { |r| r[:key] }).to include('api_secret', 'shared_secret')
       end
     end
@@ -153,14 +153,14 @@ RSpec.describe KeySearcher do
 
       it 'fetches actual secret values when expose is true' do
         results = KeySearcher.search(yaml_data, 'secret_key', env: 'test-env', expose: true)
-        
+
         secret_result = results.find { |r| r[:key] == 'secret_key' && r[:path].include?('secrets') }
         expect(secret_result[:value]).to eq('actual_secret_value')
       end
 
       it 'does not fetch secrets when expose is false' do
         results = KeySearcher.search(yaml_data, 'secret_key', env: 'test-env', expose: false)
-        
+
         secret_result = results.find { |r| r[:key] == 'secret_key' && r[:path].include?('secrets') }
         expect(secret_result[:value]).to eq('{SECRET}')
       end
@@ -171,7 +171,7 @@ RSpec.describe KeySearcher do
 
       it 'finds deeply nested matches' do
         results = KeySearcher.search(complex_data, 'username')
-        
+
         expect(results.length).to eq(1)
         expect(results.first[:path]).to eq('configs.database.credentials.username')
         expect(results.first[:value]).to eq('dbuser')
@@ -179,7 +179,7 @@ RSpec.describe KeySearcher do
 
       it 'finds service URLs with wildcards' do
         results = KeySearcher.search(complex_data, '*_service')
-        
+
         expect(results.length).to eq(2)
         services = results.map { |r| r[:key] }
         expect(services).to include('auth_service', 'payment_service')
@@ -189,17 +189,17 @@ RSpec.describe KeySearcher do
     context 'case sensitivity' do
       it 'performs case-sensitive search by default' do
         results = KeySearcher.search(yaml_data, 'API_TOKEN')
-        
+
         expect(results).to be_empty
       end
 
-      # Note: The current implementation doesn't actually use the insensitive parameter
+      # NOTE: The current implementation doesn't actually use the insensitive parameter
       # This test documents the expected behavior
-      it 'should perform case-insensitive search when insensitive is true' do
+      it 'performs case-insensitive search when insensitive is true' do
         # This test shows what the behavior should be, but the current implementation
         # doesn't actually implement case-insensitive matching
         results = KeySearcher.search(yaml_data, 'API_TOKEN', [], [], true)
-        
+
         # Currently this will be empty, but ideally should find the match
         expect(results).to be_empty
       end

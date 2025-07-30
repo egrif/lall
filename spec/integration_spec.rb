@@ -5,25 +5,25 @@ require 'open3'
 
 RSpec.describe 'Integration Tests', :integration do
   let(:lall_command) { File.expand_path('../bin/lall', __dir__) }
-  
+
   describe 'CLI executable' do
     it 'shows usage when no arguments provided' do
-      stdout, stderr, status = Open3.capture3(lall_command)
-      
+      stdout, _, status = Open3.capture3(lall_command)
+
       expect(status.exitstatus).to eq(1)
       expect(stdout).to include('Usage:')
     end
 
     it 'shows usage when required arguments are missing' do
-      stdout, stderr, status = Open3.capture3(lall_command, '-s', 'token')
-      
+      stdout, _, status = Open3.capture3(lall_command, '-s', 'token')
+
       expect(status.exitstatus).to eq(1)
       expect(stdout).to include('mutually exclusive and one is required')
     end
 
     it 'shows error for unknown group' do
-      stdout, stderr, status = Open3.capture3(lall_command, '-s', 'token', '-g', 'nonexistent')
-      
+      stdout, _, status = Open3.capture3(lall_command, '-s', 'token', '-g', 'nonexistent')
+
       expect(status.exitstatus).to eq(1)
       expect(stdout).to include('Unknown group: nonexistent')
     end
@@ -33,7 +33,7 @@ RSpec.describe 'Integration Tests', :integration do
     let(:mock_lotus_script) do
       <<~SCRIPT
         #!/bin/bash
-        
+
         if [[ "$1" == "ping" ]]; then
           exit 0
         elif [[ "$1" == "view" ]]; then
@@ -73,11 +73,11 @@ RSpec.describe 'Integration Tests', :integration do
     before do
       # Create mock lotus command
       File.write(temp_lotus_path, mock_lotus_script)
-      File.chmod(0755, temp_lotus_path)
-      
+      File.chmod(0o755, temp_lotus_path)
+
       # Temporarily modify PATH to use mock lotus
-      @original_path = ENV['PATH']
-      ENV['PATH'] = "/tmp:#{ENV['PATH']}"
+      @original_path = ENV.fetch('PATH', nil)
+      ENV['PATH'] = "/tmp:#{ENV.fetch('PATH', nil)}"
     end
 
     after do
@@ -87,12 +87,12 @@ RSpec.describe 'Integration Tests', :integration do
 
     xit 'performs end-to-end search with table output' do
       # Skip this test in CI or when lotus is not available
-      skip "Requires lotus command" unless system('which lotus > /dev/null 2>&1') || File.exist?(temp_lotus_path)
-      
-      stdout, stderr, status = Open3.capture3(
+      skip 'Requires lotus command' unless system('which lotus > /dev/null 2>&1') || File.exist?(temp_lotus_path)
+
+      stdout, _, status = Open3.capture3(
         lall_command, '-s', 'api_token', '-e', 'test-env1,test-env2'
       )
-      
+
       expect(status.exitstatus).to eq(0)
       expect(stdout).to include('api_token')
       expect(stdout).to include('test-env1')
@@ -102,23 +102,23 @@ RSpec.describe 'Integration Tests', :integration do
     end
 
     xit 'handles wildcard searches' do
-      skip "Requires lotus command" unless system('which lotus > /dev/null 2>&1') || File.exist?(temp_lotus_path)
-      
-      stdout, stderr, status = Open3.capture3(
+      skip 'Requires lotus command' unless system('which lotus > /dev/null 2>&1') || File.exist?(temp_lotus_path)
+
+      stdout, _, status = Open3.capture3(
         lall_command, '-s', '*_token', '-e', 'test-env1'
       )
-      
+
       expect(status.exitstatus).to eq(0)
       expect(stdout).to include('api_token')
     end
 
     xit 'exposes secrets when -x flag is used' do
-      skip "Requires lotus command" unless system('which lotus > /dev/null 2>&1') || File.exist?(temp_lotus_path)
-      
-      stdout, stderr, status = Open3.capture3(
+      skip 'Requires lotus command' unless system('which lotus > /dev/null 2>&1') || File.exist?(temp_lotus_path)
+
+      stdout, _, status = Open3.capture3(
         lall_command, '-s', 'secret_key', '-e', 'test-env1', '-x'
       )
-      
+
       expect(status.exitstatus).to eq(0)
       expect(stdout).to include('actual_secret_value')
     end
@@ -126,16 +126,16 @@ RSpec.describe 'Integration Tests', :integration do
 
   describe 'Error handling' do
     it 'handles invalid command line options gracefully' do
-      stdout, stderr, status = Open3.capture3(lall_command, '--invalid-option')
-      
+      _, _, status = Open3.capture3(lall_command, '--invalid-option')
+
       expect(status.exitstatus).to eq(1)
     end
 
     it 'validates mutually exclusive options' do
-      stdout, stderr, status = Open3.capture3(
+      stdout, _, status = Open3.capture3(
         lall_command, '-s', 'token', '-e', 'env1', '-g', 'group1'
       )
-      
+
       expect(status.exitstatus).to eq(1)
       expect(stdout).to include('mutually exclusive')
     end

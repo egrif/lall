@@ -12,12 +12,12 @@ RSpec::Core::RakeTask.new(:integration) do |task|
 end
 
 desc 'Run all tests'
-task :test => [:spec, :integration]
+task test: %i[spec integration]
 
 desc 'Run unit tests only'
-task :unit => :spec
+task unit: :spec
 
 desc 'Run integration tests only'
-task :integration_tests => :integration
+task integration_tests: :integration
 
-task :default => :spec
+task default: :spec

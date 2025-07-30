@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # lib/lall/cli_options.rb
 module Cli
   class Options
@@ -8,7 +10,7 @@ module Cli
       truncate: 40,
       expose: false,
       debug: false
-    }
+    }.freeze
 
     attr_reader :options
 

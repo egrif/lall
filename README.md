@@ -128,6 +128,8 @@ lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
 | | `--no-cache` | Disable caching for this request | `false` |
 | | `--clear-cache` | Clear all cache entries and exit | |
 | | `--cache-stats` | Show cache statistics and exit | |
+| | `--debug-settings` | Show settings resolution and exit | |
+| | `--init-settings` | Initialize user settings file and exit | |
 
 ### Environment Groups
 
@@ -253,6 +255,21 @@ lall --cache-stats
 lall --clear-cache && lall -s '*' -g prod-all
 ```
 
+### Settings Examples
+
+```bash
+# Initialize your personal settings file
+lall --init-settings
+
+# View how settings are resolved
+lall --debug-settings
+
+# Use environment variable defaults
+export LALL_CACHE_TTL=7200
+export LALL_DEBUG=true
+lall -s database_* -e prod
+```
+
 ### Wildcard Patterns
 
 ```bash
@@ -309,6 +326,60 @@ lall --cache-stats
 - Failed cache operations gracefully fallback to direct queries
 
 ## Configuration
+
+### Settings Priority Resolution
+
+Lall follows a clear priority order for configuration settings:
+
+1. **Command line arguments** (highest priority)
+2. **Environment variables**
+3. **User settings file** (`~/.lall/settings.yml`)
+4. **Gem default settings** (`config/settings.yml`, lowest priority)
+
+#### Environment Variables
+
+Set these environment variables to configure default behavior:
+
+```bash
+export LALL_CACHE_TTL=7200          # Cache TTL in seconds
+export LALL_CACHE_DIR=/my/cache     # Cache directory path
+export LALL_CACHE_ENABLED=false     # Enable/disable caching
+export LALL_DEBUG=true              # Enable debug output
+export LALL_TRUNCATE=60             # Default truncation length
+export REDIS_URL=redis://localhost  # Redis connection URL
+```
+
+#### User Settings File
+
+Create `~/.lall/settings.yml` to customize your personal defaults:
+
+```bash
+# Initialize a settings file with defaults and comments
+lall --init-settings
+```
+
+This creates a well-commented settings file you can customize:
+
+```yaml
+cache:
+  ttl: 7200                    # 2 hours instead of default 1 hour
+  directory: ~/my-lall-cache   # Custom cache location
+  enabled: true                # Enable caching by default
+
+output:
+  debug: false                 # Disable debug by default
+  truncate: 60                 # Longer truncation
+```
+
+#### Debug Settings Resolution
+
+Use `--debug-settings` to see how settings are resolved:
+
+```bash
+lall --debug-settings
+```
+
+This shows the current values and where they came from.
 
 ### Environment Groups
 

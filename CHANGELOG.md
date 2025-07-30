@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-07-30
+
+### Added
+- **Settings Priority Resolution System**: Comprehensive configuration management with priority order:
+  1. Command line arguments (highest priority)
+  2. Environment variables
+  3. User settings file (`~/.lall/settings.yml`)
+  4. Gem default settings (lowest priority)
+- **User Settings Initialization**: New `--init-settings` command to create a personalized settings file
+- **Environment Variable Support**: Full support for environment variables like `LALL_CACHE_TTL`, `LALL_DEBUG`, etc.
+- **Settings Debug Tool**: New `--debug-settings` command to show how settings are resolved
+- **Enhanced Settings Manager**: Comprehensive `SettingsManager` class with smart resolution logic
+- **Well-Commented Settings File**: Auto-generated user settings file includes helpful comments and examples
+
+### Changed
+- CLI initialization refactored to use the new settings priority system
+- Cache manager now integrates with the settings resolution system
+- All configuration options now support the four-tier priority resolution
+- Settings are resolved once at startup for better performance
+
+### Technical Details
+- Added `Lall::SettingsManager` class with comprehensive priority resolution
+- Enhanced CLI option parsing to separate raw options from resolved options
+- Added boolean parsing for environment variables (true/false/1/0)
+- Comprehensive test coverage for all settings resolution scenarios
+
+## [0.2.0] - 2025-07-30
+
 ## [0.1.2] - 2025-07-30
 
 ### Added

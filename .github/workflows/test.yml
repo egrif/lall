@@ -22,6 +22,11 @@ jobs:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
 
+    - name: Configure bundler
+      run: |
+        bundle config set frozen false
+        bundle config set deployment false
+
     - name: Debug bundle info
       run: |
         echo "Ruby version: $(ruby --version)"

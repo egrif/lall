@@ -33,6 +33,11 @@ jobs:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
 
+    - name: Configure bundler
+      run: |
+        bundle config set frozen false
+        bundle config set deployment false
+
     - name: Run tests
       run: bundle exec rake spec
 
@@ -55,6 +60,11 @@ jobs:
       with:
         ruby-version: '3.3'
         bundler-cache: true
+
+    - name: Configure bundler
+      run: |
+        bundle config set frozen false
+        bundle config set deployment false
 
     - name: Extract version
       id: extract-version
@@ -100,6 +110,11 @@ jobs:
         ruby-version: '3.3'
         bundler-cache: true
 
+    - name: Configure bundler
+      run: |
+        bundle config set frozen false
+        bundle config set deployment false
+
     - name: Download gem artifact
       uses: actions/download-artifact@v4
       with:
@@ -132,6 +147,11 @@ jobs:
       with:
         ruby-version: '3.3'
         bundler-cache: true
+
+    - name: Configure bundler
+      run: |
+        bundle config set frozen false
+        bundle config set deployment false
 
     - name: Download gem artifact
       uses: actions/download-artifact@v4

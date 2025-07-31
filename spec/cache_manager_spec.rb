@@ -20,10 +20,10 @@ RSpec.describe Lall::CacheManager do
   end
 
   describe '#initialize' do
-    context 'with disk backend' do
-      it 'initializes with disk backend when redis_url is nil' do
+    context 'with moneta backend' do
+      it 'initializes with moneta backend when redis_url is nil' do
         manager = Lall::CacheManager.new(cache_config)
-        expect(manager.stats[:backend]).to eq('disk')
+        expect(manager.stats[:backend]).to eq('moneta')
         expect(manager.enabled?).to be true
       end
 
@@ -130,9 +130,10 @@ RSpec.describe Lall::CacheManager do
     it 'returns cache statistics' do
       stats = manager.stats
       expect(stats).to include(
-        backend: 'disk',
+        backend: 'moneta',
         enabled: true,
         ttl: 60,
+        cache_prefix: 'lall-cache',
         cache_dir: test_cache_dir
       )
     end
@@ -178,6 +179,38 @@ RSpec.describe Lall::CacheManager do
       # Non-secret data should be stored as plain JSON
       expect(raw_contents).to include('"encrypted":false')
       expect(raw_contents).to include('my_application')
+    end
+  end
+
+  describe 'cache prefix functionality' do
+    let(:cache1) { Lall::CacheManager.new(cache_config) }
+    let(:cache2) { Lall::CacheManager.new(cache_config.merge(cache_prefix: 'test-app')) }
+
+    it 'uses different cache keys for different prefixes' do
+      cache1.set('same_key', 'value1')
+      cache2.set('same_key', 'value2')
+
+      expect(cache1.get('same_key')).to eq('value1')
+      expect(cache2.get('same_key')).to eq('value2')
+    end
+
+    it 'clears only keys with matching prefix' do
+      cache1.set('test1', 'value1')
+      cache1.set('test2', 'value2')
+      cache2.set('test1', 'other_value1')
+      cache2.set('test2', 'other_value2')
+
+      cache1.clear_cache
+
+      expect(cache1.get('test1')).to be_nil
+      expect(cache1.get('test2')).to be_nil
+      expect(cache2.get('test1')).to eq('other_value1')
+      expect(cache2.get('test2')).to eq('other_value2')
+    end
+
+    it 'includes prefix in stats' do
+      expect(cache1.stats[:cache_prefix]).to eq('lall-cache')
+      expect(cache2.stats[:cache_prefix]).to eq('test-app')
     end
   end
 end

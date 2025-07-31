@@ -17,6 +17,7 @@ module Lall
     ENV_VAR_MAPPINGS = {
       'cache.ttl' => 'LALL_CACHE_TTL',
       'cache.directory' => 'LALL_CACHE_DIR',
+      'cache.prefix' => 'LALL_CACHE_PREFIX',
       'cache.enabled' => 'LALL_CACHE_ENABLED',
       'cache.secret_key_file' => 'LALL_SECRET_KEY_FILE',
       'redis_url' => 'REDIS_URL',
@@ -59,6 +60,7 @@ module Lall
       {
         ttl: get('cache.ttl', 3600).to_i,
         directory: File.expand_path(get('cache.directory', '~/.lall/cache').to_s),
+        prefix: get('cache.prefix', 'lall-cache').to_s,
         enabled: parse_boolean(get('cache.enabled', true)),
         secret_key_file: File.expand_path(get('cache.secret_key_file', '~/.lall/secret.key').to_s),
         redis_url: get('redis_url')
@@ -119,6 +121,8 @@ module Lall
           'ttl' => 3600,
           '# Cache directory path (default: ~/.lall/cache)' => nil,
           'directory' => '~/.lall/cache',
+          '# Cache key prefix (default: lall-cache)' => nil,
+          'prefix' => 'lall-cache',
           '# Enable/disable caching by default (default: true)' => nil,
           'enabled' => true,
           '# Secret key file for encryption (default: ~/.lall/secret.key)' => nil,

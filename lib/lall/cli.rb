@@ -91,6 +91,9 @@ class LallCLI
     opts.on('--cache-dir=DIR', 'Cache directory for disk storage (default: ~/.lall/cache)') do |v|
       @raw_options[:cache_dir] = v
     end
+    opts.on('--cache-prefix=PREFIX', 'Cache key prefix (default: lall-cache)') do |v|
+      @raw_options[:cache_prefix] = v
+    end
     opts.on('--no-cache', 'Disable caching') { @raw_options[:cache_enabled] = false }
     opts.on('--clear-cache', 'Clear cache and exit') { @raw_options[:clear_cache] = true }
     opts.on('--cache-stats', 'Show cache statistics and exit') { @raw_options[:cache_stats] = true }
@@ -166,6 +169,7 @@ class LallCLI
     cache_settings = @settings.cache_settings
     resolved[:cache_ttl] = @raw_options[:cache_ttl] || cache_settings[:ttl]
     resolved[:cache_dir] = @raw_options[:cache_dir] || cache_settings[:directory]
+    resolved[:cache_prefix] = @raw_options[:cache_prefix] || cache_settings[:prefix]
     resolved[:cache_enabled] =
       @raw_options.key?(:cache_enabled) ? @raw_options[:cache_enabled] : cache_settings[:enabled]
   end
@@ -193,6 +197,7 @@ class LallCLI
       enabled: @options[:cache_enabled],
       ttl: @options[:cache_ttl],
       cache_dir: @options[:cache_dir],
+      cache_prefix: @options[:cache_prefix],
       redis_url: cache_settings[:redis_url]
     }
 
@@ -248,6 +253,7 @@ class LallCLI
     puts "  Backend: #{stats[:backend]}"
     puts "  Enabled: #{stats[:enabled]}"
     puts "  TTL: #{stats[:ttl]} seconds"
+    puts "  Prefix: #{stats[:cache_prefix]}"
     puts "  Cache Dir: #{stats[:cache_dir]}" if stats[:cache_dir]
     puts "  Redis URL: #{stats[:redis_url]}" if stats[:redis_url]
     exit 0

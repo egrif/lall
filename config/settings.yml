@@ -34,6 +34,9 @@ cache:
   # Local cache directory (default: ~/.lall/cache)
   # Can be overridden by LALL_CACHE_DIR environment variable
   directory: ~/.lall/cache
+  # Cache key prefix (default: lall-cache)
+  # Can be overridden by LALL_CACHE_PREFIX environment variable
+  prefix: lall-cache
   # Enable/disable caching (default: true)
   # Can be overridden by LALL_CACHE_ENABLED environment variable
   enabled: true

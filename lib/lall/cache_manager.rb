@@ -1,58 +1,31 @@
 # frozen_string_literal: true
 
 require 'redis'
+require 'moneta'
 require 'fileutils'
 require 'digest'
 require 'openssl'
 require 'base64'
 require 'yaml'
 require 'json'
+require 'cgi'
 
 module Lall
-  # Backend operations for cache storage
-  module CacheBackend
-    def backend_get(key)
-      if @redis
-        @redis.get(key)
-      else
-        cache_file = File.join(@cache_dir, key)
-        File.exist?(cache_file) ? File.read(cache_file) : nil
-      end
-    end
-
-    def backend_set(key, value) # rubocop:disable Naming/PredicateMethod
-      if @redis
-        @redis.set(key, value)
-      else
-        cache_file = File.join(@cache_dir, key)
-        File.write(cache_file, value)
-      end
-      true
-    end
-
-    def backend_delete(key) # rubocop:disable Naming/PredicateMethod
-      if @redis
-        @redis.del(key)
-      else
-        cache_file = File.join(@cache_dir, key)
-        FileUtils.rm_f(cache_file)
-      end
-      true
-    end
-  end
-
+  # CacheManager handles Redis and Moneta-based caching with encryption support
+  # rubocop:disable Metrics/ClassLength
   class CacheManager
-    include CacheBackend
-
     DEFAULT_TTL = 3600 # 1 hour
     DEFAULT_CACHE_DIR = '~/.lall/cache'
     DEFAULT_SECRET_KEY_FILE = '~/.lall/secret.key'
+    DEFAULT_CACHE_PREFIX = 'lall-cache'
 
     # rubocop:disable Metrics/AbcSize
     def initialize(options = {})
       @redis_url = options[:redis_url] || ENV.fetch('REDIS_URL', nil)
       @cache_dir = expand_path(options[:cache_dir] || ENV['LALL_CACHE_DIR'] ||
                                cache_config['directory'] || DEFAULT_CACHE_DIR)
+      @cache_prefix = options[:cache_prefix] || ENV['LALL_CACHE_PREFIX'] ||
+                      cache_config['prefix'] || DEFAULT_CACHE_PREFIX
       @ttl = options[:ttl] || ENV['LALL_CACHE_TTL']&.to_i ||
              cache_config['ttl'] || DEFAULT_TTL
       @enabled = if options.key?(:enabled)
@@ -74,7 +47,7 @@ module Lall
     def get(key)
       return nil unless @enabled
 
-      cached_data = backend_get(cache_key(key))
+      cached_data = @cache_store.load(cache_key(key))
       return nil unless cached_data
 
       begin
@@ -91,9 +64,9 @@ module Lall
         # Decrypt if it was stored as encrypted
         if parsed_data['encrypted']
           value = decrypt(value)
-          # Parse JSON if it was a hash/object
+          # Parse JSON since encrypted values are always JSON-encoded
           begin
-            value = JSON.parse(value) if value.is_a?(String) && value.start_with?('{', '[')
+            value = JSON.parse(value)
           rescue JSON::ParserError
             # If JSON parsing fails, return as string
           end
@@ -107,34 +80,32 @@ module Lall
       end
     end
 
-    def set(key, value, is_secret: false)
+    def set(key, value, is_secret: false) # rubocop:disable Naming/PredicateMethod
       return false unless @enabled
 
       data = {
         'value' => is_secret ? encrypt(value.to_json) : value,
         'encrypted' => is_secret,
+        'prefix' => @cache_prefix,
         'created_at' => Time.now.to_i,
         'expires_at' => Time.now.to_i + @ttl
       }
 
-      backend_set(cache_key(key), JSON.generate(data))
+      @cache_store.store(cache_key(key), JSON.generate(data))
+      true
     end
 
-    def delete(key)
+    def delete(key) # rubocop:disable Naming/PredicateMethod
       return false unless @enabled
 
-      backend_delete(cache_key(key))
+      @cache_store.delete(cache_key(key))
+      true
     end
 
     def clear_cache # rubocop:disable Naming/PredicateMethod
       return false unless @enabled
 
-      if @redis
-        @redis.flushdb
-      else
-        FileUtils.rm_rf(@cache_dir)
-        FileUtils.mkdir_p(@cache_dir)
-      end
+      clear_prefixed_keys
       true
     end
 
@@ -144,11 +115,12 @@ module Lall
 
     def stats
       {
-        backend: @redis ? 'redis' : 'disk',
+        backend: backend_name,
         enabled: @enabled,
         ttl: @ttl,
-        cache_dir: @redis ? nil : @cache_dir,
-        redis_url: @redis ? @redis_url&.gsub(%r{://.*@}, '://***@') : nil
+        cache_prefix: @cache_prefix,
+        cache_dir: @backend_type == :redis ? nil : @cache_dir,
+        redis_url: @backend_type == :redis ? @redis_url&.gsub(%r{://.*@}, '://***@') : nil
       }
     end
 
@@ -168,22 +140,30 @@ module Lall
 
     def setup_cache_backend
       if @redis_url
-        begin
-          @redis = Redis.new(url: @redis_url)
-          @redis.ping # Test connection
-        rescue Redis::CannotConnectError, Redis::ConnectionError => e
-          warn "Warning: Could not connect to Redis (#{@redis_url}): #{e.message}"
-          warn 'Falling back to disk cache'
-          @redis = nil
-          setup_disk_cache
-        end
+        setup_redis_backend
       else
-        setup_disk_cache
+        setup_moneta_backend
       end
     end
 
-    def setup_disk_cache
+    def setup_redis_backend
+      redis_client = Redis.new(url: @redis_url)
+      redis_client.ping # Test connection
+      @cache_store = Moneta.new(:Redis, redis: redis_client)
+      @backend_type = :redis
+    rescue Redis::CannotConnectError, Redis::ConnectionError
+      setup_moneta_backend
+    end
+
+    def setup_moneta_backend
       FileUtils.mkdir_p(@cache_dir)
+      # Use Moneta's File adapter for reliable disk-based caching
+      @cache_store = Moneta.new(:File, dir: @cache_dir)
+      @backend_type = :moneta
+    end
+
+    def backend_name
+      @backend_type == :redis ? 'redis' : 'moneta'
     end
 
     def setup_encryption
@@ -228,8 +208,42 @@ module Lall
     end
 
     def cache_key(key)
-      # Create a consistent cache key using SHA256
-      Digest::SHA256.hexdigest("lall:#{key}")
+      # Create a consistent cache key with prefix using SHA256
+      "#{@cache_prefix}:#{Digest::SHA256.hexdigest(key)}"
+    end
+
+    def clear_prefixed_keys
+      case @backend_type
+      when :redis
+        # For Redis, use pattern matching to delete only keys with our prefix
+        pattern = "#{@cache_prefix}:*"
+        keys = @cache_store.instance_variable_get(:@redis).keys(pattern)
+        @cache_store.instance_variable_get(:@redis).del(keys) unless keys.empty?
+      when :moneta
+        # For Moneta file backend, iterate through files and check each one
+        clear_prefixed_moneta_keys
+      end
+    end
+
+    def clear_prefixed_moneta_keys
+      return unless File.directory?(@cache_dir)
+
+      Dir.glob(File.join(@cache_dir, '*')).each do |file_path|
+        next unless File.file?(file_path)
+
+        begin
+          # Get the key from the filename (URL decode it)
+          filename = File.basename(file_path)
+          key = CGI.unescape(filename)
+
+          # Check if this key starts with our prefix
+          @cache_store.delete(key) if key.start_with?("#{@cache_prefix}:")
+        rescue StandardError
+          # If we can't process the file, skip it
+          next
+        end
+      end
     end
   end
+  # rubocop:enable Metrics/ClassLength
 end

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-07-31
+
+### Added
+- **Cache Prefix Support**: Configurable cache key prefixes for namespace isolation
+  - Default prefix: `lall-cache`
+  - Configurable via `--cache-prefix`, `LALL_CACHE_PREFIX` environment variable, or settings file
+  - Enables multiple applications to share cache storage without conflicts
+- **Selective Cache Clearing**: Cache clear operations now respect prefix boundaries
+  - Only cache entries with matching prefix are cleared
+  - Prevents accidental clearing of other applications' cache data
+- **Enhanced Cache Backend**: Upgraded from custom file-based cache to professional Moneta gem
+  - Redis primary backend with Moneta file-based fallback
+  - Improved reliability and performance
+  - Better error handling and graceful fallbacks
+- **Cache Statistics Enhancement**: Cache stats now include current prefix information
+
+### Changed
+- **Cache Architecture**: Replaced complex multi-backend system with Redis + Moneta approach
+- **Cache Key Generation**: All cache keys now include configurable prefix (`prefix:hash`)
+- **Settings Integration**: Cache prefix fully integrated into settings priority resolution system
+- **Documentation**: Updated README with comprehensive cache prefix examples and configuration
+
+### Technical Details
+- Added `moneta` gem dependency for professional key-value store management
+- Enhanced cache manager with prefix-aware operations for both Redis and Moneta backends
+- Added comprehensive test coverage for cache prefix functionality
+- Improved code quality with simplified cache backend architecture
+
 ## [0.3.0] - 2025-07-30
 
 ### Added

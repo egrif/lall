@@ -37,9 +37,11 @@ A Ruby CLI tool for comparing YAML configuration values across multiple environm
 - **Secret management**: Optionally expose actual secret values with the `-x/--expose` flag
 - **Performance optimized**: Threaded parallel fetching of environment data and secrets
 - **Advanced caching system**: 
-  - Redis backend (if `REDIS_URL` available) with disk fallback
+  - Redis backend (if `REDIS_URL` available) with Moneta file fallback
   - Encrypted secret storage using AES-256-GCM
-  - Configurable TTL and cache directories
+  - Configurable TTL, cache directories, and prefixes
+  - Cache namespace isolation for multi-application environments
+  - Selective cache clearing with prefix-aware operations
   - Cache management commands (`--cache-stats`, `--clear-cache`, etc.)
 - **Customizable output**: Truncation control, case-insensitive search options
 - **Debug support**: Built-in debugging capabilities with detailed command output
@@ -125,8 +127,9 @@ lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
 | `-d` | `--debug` | Enable debug output (shows lotus commands) | `false` |
 | | `--cache-ttl=SECONDS` | Set cache TTL in seconds | `3600` |
 | | `--cache-dir=PATH` | Set cache directory path | `~/.lall/cache` |
+| | `--cache-prefix=PREFIX` | Set cache key prefix for isolation | `lall-cache` |
 | | `--no-cache` | Disable caching for this request | `false` |
-| | `--clear-cache` | Clear all cache entries and exit | |
+| | `--clear-cache` | Clear cache entries with matching prefix and exit | |
 | | `--cache-stats` | Show cache statistics and exit | |
 | | `--debug-settings` | Show settings resolution and exit | |
 | | `--init-settings` | Initialize user settings file and exit | |
@@ -245,13 +248,19 @@ lall -s database_* -e prod --cache-ttl=7200
 # Use custom cache directory for isolation
 lall -s secrets_* -e prod --cache-dir=/secure/cache
 
+# Use cache prefix for multi-application environments
+lall -s config_* -e prod --cache-prefix=web-app
+
 # Disable caching for real-time sensitive data
 lall -s current_timestamp -e prod --no-cache
 
-# View cache performance statistics
+# View cache performance statistics (includes current prefix)
 lall --cache-stats
 
-# Clear all cached data before fresh scan
+# Clear cache entries with specific prefix
+lall --cache-prefix=web-app --clear-cache
+
+# Clear all cache and perform fresh scan
 lall --clear-cache && lall -s '*' -g prod-all
 ```
 
@@ -292,8 +301,16 @@ Lall includes an advanced caching system to improve performance when searching a
 
 ### Cache Backends
 
-- **Redis (Primary)**: Fast in-memory caching with support for TTL
-- **Disk (Fallback)**: File-based caching when Redis is unavailable
+- **Redis (Primary)**: Fast in-memory caching with support for TTL and pattern-based operations
+- **Moneta File (Fallback)**: Reliable file-based caching when Redis is unavailable
+
+### Cache Isolation
+
+Cache entries are isolated using configurable prefixes, allowing multiple applications or environments to share cache storage without conflicts:
+
+- **Default prefix**: `lall-cache`
+- **Configurable**: Set via `--cache-prefix`, environment variable, or settings file
+- **Selective clearing**: Only entries with matching prefix are cleared
 
 ### Security
 
@@ -308,21 +325,24 @@ lall -s database -e prod --cache-ttl=7200
 # Use custom cache directory
 lall -s database -e prod --cache-dir=/tmp/my-cache
 
+# Use custom cache prefix for isolation
+lall -s database -e prod --cache-prefix=my-app
+
 # Disable caching for sensitive operations
 lall -s secrets -e prod --no-cache
 
-# Clear all cached data
-lall --clear-cache
+# Clear cache entries with specific prefix
+lall --cache-prefix=my-app --clear-cache
 
-# View cache statistics
+# View cache statistics (includes current prefix)
 lall --cache-stats
 ```
 
 ### Cache Management
 
 - Cache entries automatically expire based on TTL
-- Cache keys are generated from search parameters (string, environments, options)
-- Cached results are validated against current configuration state
+- Cache keys are prefixed for namespace isolation (default: `lall-cache`)
+- Cache clearing operations respect prefix boundaries
 - Failed cache operations gracefully fallback to direct queries
 
 ## Configuration
@@ -343,6 +363,7 @@ Set these environment variables to configure default behavior:
 ```bash
 export LALL_CACHE_TTL=7200          # Cache TTL in seconds
 export LALL_CACHE_DIR=/my/cache     # Cache directory path
+export LALL_CACHE_PREFIX=my-app     # Cache key prefix for isolation
 export LALL_CACHE_ENABLED=false     # Enable/disable caching
 export LALL_DEBUG=true              # Enable debug output
 export LALL_TRUNCATE=60             # Default truncation length
@@ -364,6 +385,7 @@ This creates a well-commented settings file you can customize:
 cache:
   ttl: 7200                    # 2 hours instead of default 1 hour
   directory: ~/my-lall-cache   # Custom cache location
+  prefix: my-app               # Custom cache prefix for isolation
   enabled: true                # Enable caching by default
 
 output:

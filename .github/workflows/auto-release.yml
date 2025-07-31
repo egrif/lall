@@ -81,12 +81,13 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ matrix.ruby-version }}
-        bundler-cache: true
+        bundler-cache: false
 
-    - name: Configure bundler
+    - name: Configure bundler and install dependencies
       run: |
         bundle config set frozen false
         bundle config set deployment false
+        bundle install
 
     - name: Run tests
       run: bundle exec rake test
@@ -108,12 +109,13 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.3'
-        bundler-cache: true
+        bundler-cache: false
 
-    - name: Configure bundler
+    - name: Configure bundler and install dependencies
       run: |
         bundle config set frozen false
         bundle config set deployment false
+        bundle install
 
     - name: Build gem
       id: build-gem
@@ -214,12 +216,13 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.3'
-        bundler-cache: true
+        bundler-cache: false
 
-    - name: Configure bundler
+    - name: Configure bundler and install dependencies
       run: |
         bundle config set frozen false
         bundle config set deployment false
+        bundle install
 
     - name: Download gem artifact
       uses: actions/download-artifact@v4

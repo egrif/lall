@@ -1,5 +1,9 @@
 name: Auto Release on Version Change
 
+# This workflow creates releases automatically when pushed to main.
+# It relies on the "Tests" workflow for quality gates (tests, security, linting).
+# Only runs build/release steps if version checks pass.
+
 on:
   push:
     branches:
@@ -68,37 +72,8 @@ jobs:
           echo "Both tag and release already exist, skipping"
         fi
 
-  test:
-    needs: check-version
-    if: needs.check-version.outputs.should-proceed == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        ruby-version: ['3.1', '3.2', '3.3']
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Ruby ${{ matrix.ruby-version }}
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: ${{ matrix.ruby-version }}
-        bundler-cache: false
-
-    - name: Configure bundler and install dependencies
-      run: |
-        bundle config set frozen false
-        bundle config set deployment false
-        bundle install
-
-    - name: Run tests
-      run: bundle exec rake test
-
-    - name: Run RuboCop
-      run: bundle exec rubocop
-      if: matrix.ruby-version == '3.3'
-
   build:
-    needs: [check-version, test]
+    needs: check-version
     if: needs.check-version.outputs.should-proceed == 'true'
     runs-on: ubuntu-latest
     outputs:
@@ -133,7 +108,7 @@ jobs:
         retention-days: 5
 
   create-tag-and-release:
-    needs: [check-version, test, build]
+    needs: [check-version, build]
     if: needs.check-version.outputs.should-proceed == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -207,7 +182,7 @@ jobs:
           "$GEM_FILE"
 
   publish-github:
-    needs: [check-version, test, build, create-tag-and-release]
+    needs: [check-version, build, create-tag-and-release]
     if: needs.check-version.outputs.should-proceed == 'true'
     runs-on: ubuntu-latest
     steps:

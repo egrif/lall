@@ -4,15 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'lib/lall/version.rb'
-  workflow_dispatch:
-    inputs:
-      force:
-        description: 'Force create release even if tag exists'
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -66,19 +57,15 @@ jobs:
     - name: Determine if we should proceed
       id: should-proceed
       run: |
-        FORCE="${{ github.event.inputs.force || 'false' }}"
         TAG_EXISTS="${{ steps.check-tag.outputs.exists }}"
         RELEASE_EXISTS="${{ steps.check-release.outputs.exists }}"
         
-        if [[ "$FORCE" == "true" ]]; then
-          echo "result=true" >> $GITHUB_OUTPUT
-          echo "Force flag set, will proceed with tag/release creation"
-        elif [[ "$TAG_EXISTS" == "false" || "$RELEASE_EXISTS" == "false" ]]; then
+        if [[ "$TAG_EXISTS" == "false" || "$RELEASE_EXISTS" == "false" ]]; then
           echo "result=true" >> $GITHUB_OUTPUT
           echo "Will proceed with tag/release creation (tag exists: $TAG_EXISTS, release exists: $RELEASE_EXISTS)"
         else
           echo "result=false" >> $GITHUB_OUTPUT
-          echo "Both tag and release already exist, skipping (use force=true to override)"
+          echo "Both tag and release already exist, skipping"
         fi
 
   test:

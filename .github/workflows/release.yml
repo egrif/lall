@@ -7,11 +7,6 @@ on:
         description: 'Version to release (e.g., 1.0.0) - Leave empty to use current version from version.rb'
         required: false
         type: string
-      publish_to_rubygems:
-        description: 'Publish to RubyGems.org (requires API key)'
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -138,45 +133,6 @@ jobs:
         gem push --key github --host https://rubygems.pkg.github.com/${{ github.repository_owner }} $GEM_NAME
         echo "Published $GEM_NAME to GitHub Packages"
 
-  publish-rubygems:
-    needs: [test, build]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Ruby
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: '3.3'
-        bundler-cache: false
-
-    - name: Configure bundler and install dependencies
-      run: |
-        bundle config set frozen false
-        bundle config set deployment false
-        bundle install
-
-    - name: Download gem artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: gem-package
-
-    - name: Configure RubyGems
-      run: |
-        mkdir -p ~/.gem
-        cat << EOF > ~/.gem/credentials
-        ---
-        :rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}
-        EOF
-        chmod 0600 ~/.gem/credentials
-
-    - name: Publish to RubyGems.org
-      run: |
-        GEM_NAME="${{ needs.build.outputs.gem-name }}"
-        gem push $GEM_NAME
-        echo "Published $GEM_NAME to RubyGems.org"
-
   create-release:
     needs: [test, build]
     runs-on: ubuntu-latest
@@ -206,11 +162,6 @@ jobs:
           ### From GitHub Packages
           ```bash
           gem install lall --source "https://rubygems.pkg.github.com/egrif"
-          ```
-          
-          ### From RubyGems.org
-          ```bash
-          gem install lall
           ```
           
           ## Usage

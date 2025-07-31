@@ -61,7 +61,8 @@
     "srand",
     "unshift",
     "subkey",
-    "subvalue"
+    "subvalue",
+    "moneta"
   ],
   "ignorePaths": [
     "node_modules/**",

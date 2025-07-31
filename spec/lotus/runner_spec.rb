@@ -63,13 +63,13 @@ RSpec.describe Lotus::Runner do
     end
 
     it 'constructs correct lotus command' do
-      expect(Open3).to receive(:popen3).with(/lotus view -s \\test-env -e \\test-env -a greenhouse -G/)
+      expect(Open3).to receive(:popen3).with(/lotus view -s \\test-env -e \\test-env -a greenhouse/)
       Lotus::Runner.fetch_yaml('test-env')
     end
 
     it 'includes region argument when applicable' do
       allow(Lotus::Runner).to receive(:get_lotus_args).and_return(%w[prod use1])
-      expect(Open3).to receive(:popen3).with(/lotus view -s \\prod -e \\test-env -a greenhouse -G -r \\use1/)
+      expect(Open3).to receive(:popen3).with(/lotus view -s \\prod -e \\test-env -a greenhouse -r \\use1/)
       Lotus::Runner.fetch_yaml('test-env')
     end
 

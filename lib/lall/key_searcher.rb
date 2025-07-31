@@ -5,6 +5,7 @@ require 'lotus/environment'
 require 'lotus/group'
 require 'lotus/runner'
 
+# rubocop:disable Metrics/ClassLength
 class KeySearcher
   def self.match_key?(key_str, search_str)
     if search_str.include?('*')
@@ -15,14 +16,15 @@ class KeySearcher
     end
   end
 
-  def self.handle_secret_match(results, secret_jobs, path, key, value, expose, env, idx: nil)
+  def self.handle_secret_match(results, secret_jobs, path, key, value, expose, env, search_data: nil, idx: nil)
     match_options = {
       path: path,
       key: key,
       value: value,
       expose: expose,
       env: env,
-      idx: idx
+      idx: idx,
+      search_data: search_data
     }
 
     add_result_to_collection(results, secret_jobs, match_options)
@@ -30,13 +32,94 @@ class KeySearcher
 
   def self.add_result_to_collection(results, secret_jobs, options)
     match_path = (options[:path] + [(options[:idx].nil? ? options[:key] : options[:idx])]).join('.')
+    color = determine_value_color(options)
 
     if should_expose_secret?(options)
-      secret_jobs << { env: options[:env], key: options[:key], path: match_path, k: options[:key] }
-      results << { path: match_path, key: options[:key], value: :__PENDING_SECRET__ }
+      secret_jobs << { env: options[:env], key: options[:key], path: match_path, k: options[:key], color: color }
+      results << { path: match_path, key: options[:key], value: :__PENDING_SECRET__, color: color }
     else
-      results << { path: match_path, key: options[:key], value: options[:value] }
+      results << { path: match_path, key: options[:key], value: options[:value], color: color }
     end
+  end
+
+  def self.determine_value_color(options)
+    return nil unless options[:search_data] && options[:path] && options[:key]
+
+    path_array = options[:path]
+    is_env_value = %w[configs secrets].include?(path_array.first)
+    is_group_value = %w[group_configs group_secrets].include?(path_array.first)
+
+    return determine_env_value_color(options) if is_env_value
+    return determine_group_value_color(options) if is_group_value
+
+    nil # No color for other paths
+  end
+
+  def self.determine_env_value_color(options)
+    path_array = options[:path]
+    key = options[:key]
+    search_data = options[:search_data]
+    current_value = options[:value]
+
+    group_path_array = build_corresponding_group_path(path_array)
+    group_path_str = (group_path_array + [key]).join('.')
+    group_value = get_value_from_path(search_data, group_path_str)
+
+    return :white unless group_value
+    return :blue if current_value == group_value
+
+    :yellow # Environment overrides group
+  end
+
+  def self.determine_group_value_color(options)
+    path_array = options[:path]
+    key = options[:key]
+    search_data = options[:search_data]
+
+    env_path_array = build_corresponding_env_path(path_array)
+    env_path_str = (env_path_array + [key]).join('.')
+    env_value = get_value_from_path(search_data, env_path_str)
+
+    return nil if env_value
+
+    :green # Group value, no override
+  end
+
+  def self.build_corresponding_group_path(path_array)
+    if path_array.first == 'configs'
+      ['group_configs'] + path_array[1..]
+    elsif path_array.first == 'secrets'
+      ['group_secrets'] + path_array[1..]
+    end
+  end
+
+  def self.build_corresponding_env_path(path_array)
+    if path_array.first == 'group_configs'
+      ['configs'] + path_array[1..]
+    elsif path_array.first == 'group_secrets'
+      ['secrets'] + path_array[1..]
+    end
+  end
+
+  def self.get_value_from_path(data, path)
+    return nil unless data && path
+
+    # Convert path to array if it's a string
+    path_parts = if path.is_a?(String)
+                   path.split('.')
+                 elsif path.is_a?(Array)
+                   path.map(&:to_s)
+                 else
+                   return nil
+                 end
+
+    current = data
+    path_parts.each do |part|
+      return nil unless current.is_a?(Hash) && current.key?(part)
+
+      current = current[part]
+    end
+    current
   end
 
   def self.should_expose_secret?(options)
@@ -51,38 +134,49 @@ class KeySearcher
   end
 
   def self.search(obj, search_str, path = [], results = [], env: nil, expose: false,
-                  root_obj: nil, insensitive: false, cache_manager: nil)
+                  root_obj: nil, insensitive: false, cache_manager: nil, search_data: nil)
     root_obj ||= obj
+    search_data ||= obj
     secret_jobs = []
 
-    perform_object_search(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive)
+    perform_object_search(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive, search_data)
     process_secret_jobs(secret_jobs, root_obj, results, cache_manager) if expose && env && !secret_jobs.empty?
 
     results
   end
 
-  def self.perform_object_search(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive)
+  def self.perform_object_search(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive,
+                                 search_data)
     case obj
     when Hash
-      search_hash_object(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive)
+      search_hash_object(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive, search_data)
     when Array
-      search_array_object(obj, search_str, path, results, secret_jobs, env, expose)
+      search_array_object(obj, search_str, path, results, secret_jobs, env, expose, search_data)
     end
   end
 
-  def self.search_hash_object(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive)
+  def self.search_hash_object(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive,
+                              search_data)
     obj.each do |k, v|
       key_str = k.to_s
-      handle_secret_match(results, secret_jobs, path, k, v, expose, env) if match_key?(key_str, search_str)
-      search(v, search_str, path + [k], results, env: env, expose: expose, root_obj: root_obj, insensitive: insensitive)
+      search_term = insensitive ? search_str.downcase : search_str
+      key_match = insensitive ? key_str.downcase : key_str
+
+      if match_key?(key_match, search_term)
+        handle_secret_match(results, secret_jobs, path, k, v, expose, env, search_data: search_data)
+      end
+      search(v, search_str, path + [k], results, env: env, expose: expose, root_obj: root_obj,
+                                                 insensitive: insensitive, search_data: search_data)
     end
   end
 
-  def self.search_array_object(obj, search_str, path, results, secret_jobs, env, expose)
+  def self.search_array_object(obj, search_str, path, results, secret_jobs, env, expose, search_data)
     obj.each_with_index do |v, i|
       key_str = v.to_s
-      handle_secret_match(results, secret_jobs, path, v, '{SECRET}', expose, env, idx: i) if match_key?(key_str,
-                                                                                                        search_str)
+      if match_key?(key_str, search_str)
+        handle_secret_match(results, secret_jobs, path, v, '{SECRET}', expose, env,
+                            search_data: search_data, idx: i)
+      end
     end
   end
 
@@ -148,3 +242,4 @@ class KeySearcher
     result[:path] == job[:path] && result[:key] == job[:k] && result[:value] == :__PENDING_SECRET__
   end
 end
+# rubocop:enable Metrics/ClassLength

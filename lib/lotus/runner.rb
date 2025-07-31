@@ -9,13 +9,29 @@ module Lotus
 
     def self.fetch_yaml(env)
       s_arg, r_arg = get_lotus_args(env)
-      lotus_cmd = "lotus view -s \\#{s_arg} -e \\#{env} -a greenhouse -G"
+      lotus_cmd = "lotus view -s \\#{s_arg} -e \\#{env} -a greenhouse"
       lotus_cmd += " -r \\#{r_arg}" if r_arg
       yaml_output = nil
       Open3.popen3(lotus_cmd) do |_stdin, stdout, stderr, wait_thr|
         yaml_output = stdout.read
         unless wait_thr.value.success?
           warn "Failed to run lotus command for env '#{env}': \\#{stderr.read}"
+          return nil
+        end
+      end
+      YAML.safe_load(yaml_output)
+    end
+
+    def self.fetch_group_yaml(env, group_name)
+      s_arg, r_arg = get_lotus_args(env)
+      lotus_cmd = "lotus view -s \\#{s_arg}"
+      lotus_cmd += " -r \\#{r_arg}" if r_arg
+      lotus_cmd += " -a greenhouse -g \\#{group_name}"
+      yaml_output = nil
+      Open3.popen3(lotus_cmd) do |_stdin, stdout, stderr, wait_thr|
+        yaml_output = stdout.read
+        unless wait_thr.value.success?
+          warn "Failed to run lotus command for group '#{group_name}': \\#{stderr.read}"
           return nil
         end
       end

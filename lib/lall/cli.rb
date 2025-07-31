@@ -213,11 +213,11 @@ class LallCLI
 
   # Null object pattern for cache manager
   class NullCacheManager
-    def get(_key, _is_secret: false)
+    def get(_key, is_secret: false) # rubocop:disable Lint/UnusedMethodArgument
       nil
     end
 
-    def set(_key, _value, _is_secret: false) # rubocop:disable Naming/PredicateMethod
+    def set(_key, _value, is_secret: false) # rubocop:disable Naming/PredicateMethod, Lint/UnusedMethodArgument
       false
     end
 
@@ -226,6 +226,10 @@ class LallCLI
     end
 
     def clear # rubocop:disable Naming/PredicateMethod
+      false
+    end
+
+    def clear_cache # rubocop:disable Naming/PredicateMethod
       false
     end
 
@@ -374,9 +378,9 @@ class LallCLI
   end
 
   def extract_search_data(env)
-    # Try to get data from cache first
-    cache_key = "env_data:#{env}"
-    cached_data = @cache_manager.get(cache_key)
+    # Try to get environment data from cache first
+    env_cache_key = generate_cache_key('env', env)
+    cached_data = @cache_manager.get(env_cache_key)
 
     if cached_data
       puts "Cache hit for environment: #{env}" if @options[:debug]
@@ -384,21 +388,80 @@ class LallCLI
     end
 
     puts "Cache miss for environment: #{env}" if @options[:debug]
+    fetch_and_cache_env_data(env, env_cache_key)
+  end
 
-    # Fetch fresh data
+  def fetch_and_cache_env_data(env, env_cache_key)
+    # Fetch fresh environment data
     yaml_data = Lotus::Runner.fetch_yaml(env)
     return {} if yaml_data.nil?
 
+    search_data = build_search_data(yaml_data)
+    merge_group_data_if_present(search_data, yaml_data, env)
+
+    # Cache the environment data with encryption if it contains secrets
+    has_secrets = search_data.key?('secrets') || search_data.key?('group_secrets')
+    @cache_manager.set(env_cache_key, search_data, is_secret: has_secrets)
+
+    search_data
+  end
+
+  def build_search_data(yaml_data)
     search_data = {}
     %w[group configs secrets group_secrets].each do |k|
       search_data[k] = yaml_data[k] if yaml_data.key?(k)
     end
-
-    # Cache the data with encryption if it contains secrets
-    has_secrets = search_data.key?('secrets') || search_data.key?('group_secrets')
-    @cache_manager.set(cache_key, search_data, is_secret: has_secrets)
-
     search_data
+  end
+
+  def merge_group_data_if_present(search_data, yaml_data, env)
+    return unless yaml_data['group']
+
+    group_name = yaml_data['group']
+    group_data = extract_group_data(env, group_name)
+
+    # Merge group configs and secrets into search_data
+    search_data['group_configs'] = group_data['configs'] if group_data['configs']
+    search_data['group_secrets'] = group_data['secrets'] if group_data['secrets']
+  end
+
+  def extract_group_data(env, group_name)
+    # Try to get group data from cache first
+    group_cache_key = generate_cache_key('group', env, group_name)
+    cached_group_data = @cache_manager.get(group_cache_key)
+
+    if cached_group_data
+      puts "Cache hit for group: #{group_name}" if @options[:debug]
+      return cached_group_data
+    end
+
+    puts "Cache miss for group: #{group_name}" if @options[:debug]
+
+    # Fetch fresh group data
+    group_yaml_data = Lotus::Runner.fetch_group_yaml(env, group_name)
+    return {} if group_yaml_data.nil?
+
+    # Cache the group data with encryption if it contains secrets
+    has_group_secrets = group_yaml_data.key?('secrets')
+    @cache_manager.set(group_cache_key, group_yaml_data, is_secret: has_group_secrets)
+
+    group_yaml_data
+  end
+
+  def generate_cache_key(type, env, group_name = nil)
+    s_arg, r_arg = Lotus::Runner.get_lotus_args(env)
+
+    key_parts = [type, s_arg]
+    key_parts << r_arg if r_arg
+    key_parts << 'greenhouse' # -a value is always greenhouse
+
+    if type == 'env'
+      key_parts << env
+    elsif type == 'group' && group_name
+      key_parts << group_name
+    end
+
+    key_parts.join(':')
   end
 
   def perform_search(search_data, env)
@@ -410,7 +473,8 @@ class LallCLI
       env: env,
       expose: @options[:expose],
       insensitive: @options[:insensitive],
-      cache_manager: @cache_manager
+      cache_manager: @cache_manager,
+      search_data: search_data
     )
   end
 end

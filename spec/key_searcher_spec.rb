@@ -46,7 +46,7 @@ RSpec.describe KeySearcher do
           results, secret_jobs, ['configs'], 'api_token', 'value123', false, 'test-env'
         )
 
-        expect(results).to eq([{ path: 'configs.api_token', key: 'api_token', value: 'value123' }])
+        expect(results).to eq([{ path: 'configs.api_token', key: 'api_token', value: 'value123', color: nil }])
         expect(secret_jobs).to be_empty
       end
     end
@@ -57,8 +57,8 @@ RSpec.describe KeySearcher do
           results, secret_jobs, ['secrets'], 'secret_key', 'value123', true, 'test-env'
         )
 
-        expect(results).to eq([{ path: 'secrets.secret_key', key: 'secret_key', value: :__PENDING_SECRET__ }])
-        expect(secret_jobs).to eq([{ env: 'test-env', key: 'secret_key', path: 'secrets.secret_key', k: 'secret_key' }])
+        expect(results).to eq([{ path: 'secrets.secret_key', key: 'secret_key', value: :__PENDING_SECRET__, color: nil }])
+        expect(secret_jobs).to eq([{ env: 'test-env', key: 'secret_key', path: 'secrets.secret_key', k: 'secret_key', color: nil }])
       end
     end
 
@@ -68,8 +68,8 @@ RSpec.describe KeySearcher do
           results, secret_jobs, ['group_secrets'], 'shared_secret', 'value123', true, 'test-env'
         )
 
-        expect(results).to eq([{ path: 'group_secrets.shared_secret', key: 'shared_secret', value: :__PENDING_SECRET__ }])
-        expect(secret_jobs).to eq([{ env: 'test-env', key: 'shared_secret', path: 'group_secrets.shared_secret', k: 'shared_secret' }])
+        expect(results).to eq([{ path: 'group_secrets.shared_secret', key: 'shared_secret', value: :__PENDING_SECRET__, color: nil }])
+        expect(secret_jobs).to eq([{ env: 'test-env', key: 'shared_secret', path: 'group_secrets.shared_secret', k: 'shared_secret', color: nil }])
       end
     end
 
@@ -79,7 +79,7 @@ RSpec.describe KeySearcher do
           results, secret_jobs, %w[secrets keys], 'secret_key', '{SECRET}', false, 'test-env', idx: 0
         )
 
-        expect(results).to eq([{ path: 'secrets.keys.0', key: 'secret_key', value: '{SECRET}' }])
+        expect(results).to eq([{ path: 'secrets.keys.0', key: 'secret_key', value: '{SECRET}', color: nil }])
       end
     end
   end
@@ -193,15 +193,13 @@ RSpec.describe KeySearcher do
         expect(results).to be_empty
       end
 
-      # NOTE: The current implementation doesn't actually use the insensitive parameter
-      # This test documents the expected behavior
+      # NOTE: The current implementation now properly supports case-insensitive search
+      # This test verifies the expected behavior
       it 'performs case-insensitive search when insensitive is true' do
-        # This test shows what the behavior should be, but the current implementation
-        # doesn't actually implement case-insensitive matching
-        results = KeySearcher.search(yaml_data, 'API_TOKEN', [], [], insensitive: true)
+        results = KeySearcher.search(yaml_data, 'API_TOKEN', [], [], insensitive: true, search_data: yaml_data)
 
-        # Currently this will be empty, but ideally should find the match
-        expect(results).to be_empty
+        # Should find the api_token match when searching case-insensitively
+        expect(results).to eq([{ path: 'configs.api_token', key: 'api_token', value: 'abc123', color: :white }])
       end
     end
   end

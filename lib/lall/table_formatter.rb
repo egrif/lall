@@ -2,6 +2,15 @@
 
 # lib/lall/table_formatter.rb
 class TableFormatter
+  # ANSI color codes
+  COLORS = {
+    white: "\e[37m",    # Environment value only
+    yellow: "\e[33m",   # Environment overrides group
+    green: "\e[32m",    # Group value, no override
+    blue: "\e[34m",     # Group value same as override
+    reset: "\e[0m"      # Reset color
+  }.freeze
+
   def initialize(columns, envs, env_results, options)
     @columns = columns
     @envs = envs
@@ -10,6 +19,17 @@ class TableFormatter
     @truncate = options[:truncate]
     @path_also = options[:path_also]
     @env_width = ['Env'.length, *envs.map(&:length)].max
+  end
+
+  def colorize_value(value_str, color_type)
+    return value_str if color_type.nil? || !$stdout.tty?
+
+    "#{COLORS[color_type]}#{value_str}#{COLORS[:reset]}"
+  end
+
+  def calculate_display_width(text)
+    # Remove ANSI color codes when calculating width
+    text.gsub(/\e\[[0-9;]*m/, '').length
   end
 
   def compute_col_widths
@@ -101,32 +121,43 @@ class TableFormatter
     puts sep
     @envs.each do |env|
       row = format("| %-#{@env_width}s |", env)
-      if @path_also
-        @columns.each_with_index do |col, i|
-          match = @env_results[env].find { |r| r[:path] == col[:path] && r[:key] == col[:key] }
-          value_str = if match
-                        match[:value].is_a?(String) ? match[:value] : match[:value].inspect
-                      else
-                        ''
-                      end
-          value_str = TableFormatter.truncate_middle(value_str, col_widths[i]) if @truncate
-          row += format(" %-#{col_widths[i]}s |", value_str)
-        end
-      else
-        @columns.each_with_index do |k, i|
-          match = @env_results[env].find { |r| r[:key] == k }
-          value_str = if match
-                        match[:value].is_a?(String) ? match[:value] : match[:value].inspect
-                      else
-                        ''
-                      end
-          value_str = TableFormatter.truncate_middle(value_str, col_widths[i]) if @truncate
-          row += format(" %-#{col_widths[i]}s |", value_str)
-        end
-      end
+      row += build_table_row_columns(env, col_widths)
       puts row
     end
   end
+
+  private
+
+  def build_table_row_columns(env, col_widths)
+    row_columns = ''
+    if @path_also
+      @columns.each_with_index do |col, i|
+        match = @env_results[env].find { |r| r[:path] == col[:path] && r[:key] == col[:key] }
+        row_columns += format_table_cell(match, col_widths[i])
+      end
+    else
+      @columns.each_with_index do |k, i|
+        match = @env_results[env].find { |r| r[:key] == k }
+        row_columns += format_table_cell(match, col_widths[i])
+      end
+    end
+    row_columns
+  end
+
+  def format_table_cell(match, col_width)
+    value_str = if match
+                  match[:value].is_a?(String) ? match[:value] : match[:value].inspect
+                else
+                  ''
+                end
+    value_str = TableFormatter.truncate_middle(value_str, col_width) if @truncate
+    colored_value_str = colorize_value(value_str, match&.[](:color))
+    display_width = calculate_display_width(colored_value_str)
+    padding = col_width - display_width
+    " #{colored_value_str}#{' ' * [padding, 0].max} |"
+  end
+
+  public
 
   def print_path_table(all_paths, all_keys, envs, env_results)
     path_width = ['Path'.length, *all_paths.map(&:length)].max
@@ -156,7 +187,10 @@ class TableFormatter
                         ''
                       end
           value_str = TableFormatter.truncate_middle(value_str, @options[:truncate]) if @options[:truncate]
-          row += format(" %-#{env_widths[i]}s |", value_str)
+          colored_value_str = colorize_value(value_str, match&.[](:color))
+          display_width = calculate_display_width(colored_value_str)
+          padding = env_widths[i] - display_width
+          row += " #{colored_value_str}#{' ' * [padding, 0].max} |"
         end
         # Only print rows where at least one env has a value
         puts row unless envs.all? { |env| env_results[env].none? { |r| r[:path] == path && r[:key] == key } }
@@ -190,7 +224,10 @@ class TableFormatter
                       ''
                     end
         value_str = TableFormatter.truncate_middle(value_str, @options[:truncate]) if @options[:truncate]
-        row += format(" %-#{env_widths[i]}s |", value_str)
+        colored_value_str = colorize_value(value_str, match&.[](:color))
+        display_width = calculate_display_width(colored_value_str)
+        padding = env_widths[i] - display_width
+        row += " #{colored_value_str}#{' ' * [padding, 0].max} |"
       end
       # Only print rows where at least one env has a value
       puts row unless envs.all? { |env| env_results[env].none? { |r| r[:key] == key } }

@@ -1,17 +1,17 @@
-name: Release Gem
+name: Manual Release Gem
 
 on:
-  push:
-    tags:
-      - 'v*'
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (e.g., 1.0.0)'
-        required: true
+        description: 'Version to release (e.g., 1.0.0) - Leave empty to use current version from version.rb'
+        required: false
         type: string
+      publish_to_rubygems:
+        description: 'Publish to RubyGems.org (requires API key)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read

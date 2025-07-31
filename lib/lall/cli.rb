@@ -394,8 +394,9 @@ class LallCLI
       search_data[k] = yaml_data[k] if yaml_data.key?(k)
     end
 
-    # Cache the data (secrets will be encrypted automatically)
-    @cache_manager.set(cache_key, search_data)
+    # Cache the data with encryption if it contains secrets
+    has_secrets = search_data.key?('secrets') || search_data.key?('group_secrets')
+    @cache_manager.set(cache_key, search_data, is_secret: has_secrets)
 
     search_data
   end

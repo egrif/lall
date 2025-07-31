@@ -20,12 +20,13 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ matrix.ruby-version }}
-        bundler-cache: true
+        bundler-cache: false
 
-    - name: Configure bundler
+    - name: Configure bundler and install dependencies
       run: |
         bundle config set frozen false
         bundle config set deployment false
+        bundle install
 
     - name: Debug bundle info
       run: |
@@ -65,7 +66,13 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.3'
-        bundler-cache: true
+        bundler-cache: false
+
+    - name: Configure bundler and install dependencies
+      run: |
+        bundle config set frozen false
+        bundle config set deployment false
+        bundle install
 
     - name: Run bundle audit
       run: |
@@ -81,7 +88,13 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.3'
-        bundler-cache: true
+        bundler-cache: false
+
+    - name: Configure bundler and install dependencies
+      run: |
+        bundle config set frozen false
+        bundle config set deployment false
+        bundle install
 
     - name: Lint with RuboCop
       run: bundle exec rubocop

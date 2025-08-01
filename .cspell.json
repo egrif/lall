@@ -67,7 +67,9 @@
     "dbsize",
     "APAC",
     "binread",
-    "binwrite"
+    "binwrite",
+    "tmpdir",
+    "mktmpdir"
   ],
   "ignorePaths": [
     "node_modules/**",

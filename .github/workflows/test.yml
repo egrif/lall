@@ -104,7 +104,4 @@ jobs:
       run: bundle exec rubocop
 
     - name: Check for spelling errors
-      uses: streetsidesoftware/cspell-action@v2
-      with:
-        files: "**/*.{rb,md,yml,yaml}"
-        config: .cspell.json
+      run: npx cspell "**/*.{rb,md,yml,yaml}" --config .cspell.json

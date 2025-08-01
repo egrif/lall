@@ -68,7 +68,7 @@ module Lotus
 
     def group_name
       # This would need @data to be loaded first
-      raise NoMethodError, 'undefined method `group_name\' - requires data to be loaded first' if @data.nil?
+      raise NoMethodError, 'undefined method `group_name` - requires data to be loaded first' if @data.nil?
 
       @data['group_name']
     end

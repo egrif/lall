@@ -166,26 +166,6 @@ RSpec.describe KeySearcher do
       end
     end
 
-    context 'with complex nested structures' do
-      let(:complex_data) { complex_yaml_data }
-
-      it 'finds deeply nested matches' do
-        results = KeySearcher.search(complex_data, 'username')
-
-        expect(results.length).to eq(1)
-        expect(results.first[:path]).to eq('configs.database.credentials.username')
-        expect(results.first[:value]).to eq('dbuser')
-      end
-
-      it 'finds service URLs with wildcards' do
-        results = KeySearcher.search(complex_data, '*_service')
-
-        expect(results.length).to eq(2)
-        services = results.map { |r| r[:key] }
-        expect(services).to include('auth_service', 'payment_service')
-      end
-    end
-
     context 'case sensitivity' do
       it 'performs case-sensitive search by default' do
         results = KeySearcher.search(yaml_data, 'API_TOKEN')

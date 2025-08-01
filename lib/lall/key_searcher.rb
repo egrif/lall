@@ -139,48 +139,65 @@ class KeySearcher
     search_data ||= obj
     secret_jobs = []
 
-    perform_object_search(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive, search_data,
-                          cache_manager)
+    # Direct search in specific sections instead of recursive tree traversal
+    search_configs_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
+    search_secrets_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
+    search_group_configs_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
+    search_group_secrets_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
+
     process_secret_jobs(secret_jobs, root_obj, results, cache_manager) if expose && env && !secret_jobs.empty?
 
     results
   end
 
-  def self.perform_object_search(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive,
-                                 search_data, cache_manager)
-    case obj
-    when Hash
-      search_hash_object(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive, search_data,
-                         cache_manager)
-    when Array
-      search_array_object(obj, search_str, path, results, secret_jobs, env, expose, search_data)
+  def self.search_configs_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
+    return unless obj.is_a?(Hash) && obj['configs']
+
+    obj['configs'].each do |key, value|
+      if match_key_with_case?(key.to_s, search_str, insensitive)
+        handle_secret_match(results, secret_jobs, ['configs'], key, value, expose, env, search_data: search_data)
+      end
     end
   end
 
-  def self.search_hash_object(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive,
-                              search_data, cache_manager)
-    obj.each do |k, v|
-      key_str = k.to_s
-      search_term = insensitive ? search_str.downcase : search_str
-      key_match = insensitive ? key_str.downcase : key_str
+  def self.search_secrets_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
+    return unless obj.is_a?(Hash) && obj['secrets'] && obj['secrets']['keys']
 
-      if match_key?(key_match, search_term)
-        handle_secret_match(results, secret_jobs, path, k, v, expose, env, search_data: search_data)
+    obj['secrets']['keys'].each do |secret_key|
+      next unless secret_key.is_a?(String)
+
+      if match_key_with_case?(secret_key, search_str, insensitive)
+        handle_secret_match(results, secret_jobs, ['secrets'], secret_key, '{SECRET}', expose, env, search_data: search_data)
       end
-      search(v, search_str, path + [k], results, env: env, expose: expose, root_obj: root_obj,
-                                                 insensitive: insensitive, cache_manager: cache_manager,
-                                                 search_data: search_data)
     end
   end
 
-  def self.search_array_object(obj, search_str, path, results, secret_jobs, env, expose, search_data)
-    obj.each_with_index do |v, i|
-      key_str = v.to_s
-      if match_key?(key_str, search_str)
-        handle_secret_match(results, secret_jobs, path, v, '{SECRET}', expose, env,
-                            search_data: search_data, idx: i)
+  def self.search_group_configs_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
+    return unless obj.is_a?(Hash) && obj['group_configs']
+
+    obj['group_configs'].each do |key, value|
+      if match_key_with_case?(key.to_s, search_str, insensitive)
+        handle_secret_match(results, secret_jobs, ['group_configs'], key, value, expose, env, search_data: search_data)
       end
     end
+  end
+
+  def self.search_group_secrets_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
+    return unless obj.is_a?(Hash) && obj['group_secrets'] && obj['group_secrets']['keys']
+
+    obj['group_secrets']['keys'].each do |secret_key|
+      next unless secret_key.is_a?(String)
+
+      if match_key_with_case?(secret_key, search_str, insensitive)
+        handle_secret_match(results, secret_jobs, ['group_secrets'], secret_key, '{SECRET}', expose, env, search_data: search_data)
+      end
+    end
+  end
+
+  def self.match_key_with_case?(key_str, search_str, insensitive)
+    search_term = insensitive ? search_str.downcase : search_str
+    key_match = insensitive ? key_str.downcase : key_str
+    match_key?(key_match, search_term)
   end
 
   def self.process_secret_jobs(secret_jobs, root_obj, results, cache_manager = nil)

@@ -22,19 +22,19 @@ module Lotus
     end
 
     def configs
-      raise NoMethodError, 'undefined method `configs\' - requires data to be loaded first' if @data.nil?
+      raise NoMethodError, 'undefined method `configs` - requires data to be loaded first' if @data.nil?
 
       @data['configs'] || {}
     end
 
     def secret_keys
-      raise NoMethodError, 'undefined method `secret_keys\' - requires data to be loaded first' if @data.nil?
+      raise NoMethodError, 'undefined method `secret_keys` - requires data to be loaded first' if @data.nil?
 
       Array(@data.dig('secrets', 'keys'))
     end
 
     def group_secret_keys
-      raise NoMethodError, 'undefined method `group_secret_keys\' - requires data to be loaded first' if @data.nil?
+      raise NoMethodError, 'undefined method `group_secret_keys` - requires data to be loaded first' if @data.nil?
 
       Array(@data.dig('group_secrets', 'keys'))
     end

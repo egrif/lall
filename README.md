@@ -572,7 +572,7 @@ The test suite covers:
      ↓
 3. Lotus Ping (connectivity check)
      ↓  
-4. Parallel Environment Fetching (Lotus::Runner.fetch_yaml)
+4. Parallel Environment Fetching (Lotus::Runner.fetch_env_yaml)
      ↓
 5. YAML Search & Secret Resolution (KeySearcher)
      ↓

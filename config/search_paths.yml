@@ -1,0 +1,9 @@
+paths:
+  - env.configs:
+      value: "env.config[value]"
+  - env.group_secrets.keys:
+      value: "lotus secret get <value> -g <env.group> -r <region> -s <space> -a <application>
+  - env.secrets.keys:
+      value: "lotus secret get <value> -e <env> -r <region> -s <space> -a <application>
+  - env.group:
+      value: "env.group[value]"

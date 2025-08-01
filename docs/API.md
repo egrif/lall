@@ -175,7 +175,7 @@ Executes lotus commands and parses responses.
 
 #### Class Methods
 
-##### `fetch_yaml(env)`
+##### `fetch_env_yaml(env)`
 Fetches YAML configuration for an environment.
 
 **Parameters:**

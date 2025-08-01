@@ -7,7 +7,7 @@ module Lotus
   class Runner
     DEBUG_MODE = ARGV.include?('-d') || ARGV.include?('--debug') || ENV.fetch('DEBUG', nil)
 
-    def self.fetch_yaml(env)
+    def self.fetch_env_yaml(env)
       s_arg, r_arg = get_lotus_args(env)
       lotus_cmd = "lotus view -s \\#{s_arg} -e \\#{env} -a greenhouse -G"
       lotus_cmd += " -r \\#{r_arg}" if r_arg

@@ -52,7 +52,7 @@ RSpec.describe Lotus::Runner do
     end
   end
 
-  describe '.fetch_yaml' do
+  describe '.fetch_env_yaml' do
     before do
       allow(Open3).to receive(:popen3).and_yield(
         double('stdin'),
@@ -64,17 +64,17 @@ RSpec.describe Lotus::Runner do
 
     it 'constructs correct lotus command' do
       expect(Open3).to receive(:popen3).with(/lotus view -s \\test-env -e \\test-env -a greenhouse -G/)
-      Lotus::Runner.fetch_yaml('test-env')
+      Lotus::Runner.fetch_env_yaml('test-env')
     end
 
     it 'includes region argument when applicable' do
       allow(Lotus::Runner).to receive(:get_lotus_args).and_return(%w[prod use1])
       expect(Open3).to receive(:popen3).with(/lotus view -s \\prod -e \\test-env -a greenhouse -G -r \\use1/)
-      Lotus::Runner.fetch_yaml('test-env')
+      Lotus::Runner.fetch_env_yaml('test-env')
     end
 
     it 'parses YAML output' do
-      result = Lotus::Runner.fetch_yaml('test-env')
+      result = Lotus::Runner.fetch_env_yaml('test-env')
       expect(result).to be_a(Hash)
       expect(result['group']).to eq('test')
     end
@@ -87,7 +87,7 @@ RSpec.describe Lotus::Runner do
         double('wait_thr', value: double('status', success?: false))
       )
 
-      result = Lotus::Runner.fetch_yaml('test-env')
+      result = Lotus::Runner.fetch_env_yaml('test-env')
       expect(result).to be_nil
     end
   end

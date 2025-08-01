@@ -52,29 +52,6 @@ module SpecHelpers
       }
     }
   end
-
-  def complex_yaml_data
-    {
-      'group' => 'complex-group',
-      'configs' => {
-        'database' => {
-          'host' => 'db.example.com',
-          'port' => 5432,
-          'credentials' => {
-            'username' => 'dbuser',
-            'password_ref' => 'db_password'
-          }
-        },
-        'services' => {
-          'auth_service' => 'https://auth.example.com',
-          'payment_service' => 'https://pay.example.com'
-        }
-      },
-      'secrets' => {
-        'keys' => %w[db_password jwt_secret encryption_key]
-      }
-    }
-  end
 end
 
 RSpec.configure do |config|

@@ -64,7 +64,12 @@
     "subvalue",
     "moneta",
     "bytesize",
-    "dbsize"
+    "dbsize",
+    "APAC",
+    "binread",
+    "binwrite",
+    "tmpdir",
+    "mktmpdir"
   ],
   "ignorePaths": [
     "node_modules/**",

@@ -40,7 +40,7 @@ RSpec.describe Lall::CacheManager do
         
         Lall::CacheManager.new(cache_config)
         expect(File.exist?(test_secret_key_file)).to be true
-        expect(File.read(test_secret_key_file).length).to be >= 28 # Should be around 32 bytes, allowing for slight variation
+        expect(File.binread(test_secret_key_file).length).to eq(32) # Should be exactly 32 bytes
       end
     end
 

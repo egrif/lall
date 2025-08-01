@@ -450,8 +450,7 @@ class LallCLI
     group_name = yaml_data['group']
     group_data = extract_group_data(env, group_name)
 
-    # Merge group configs and secrets into search_data
-    search_data['group_configs'] = group_data['configs'] if group_data['configs']
+    # Merge group secrets into search_data (group configs don't exist in lotus YAML)
     search_data['group_secrets'] = group_data['secrets'] if group_data['secrets']
   end
 

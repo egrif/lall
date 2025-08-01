@@ -423,7 +423,7 @@ class LallCLI
 
   def fetch_and_cache_env_data(env, env_cache_key)
     # Fetch fresh environment data
-    yaml_data = Lotus::Runner.fetch_yaml(env)
+    yaml_data = Lotus::Runner.fetch_env_yaml(env)
     return {} if yaml_data.nil?
 
     search_data = build_search_data(yaml_data)

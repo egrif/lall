@@ -9,7 +9,7 @@ module Lotus
 
     def self.fetch_yaml(env)
       s_arg, r_arg = get_lotus_args(env)
-      lotus_cmd = "lotus view -s \\#{s_arg} -e \\#{env} -a greenhouse"
+      lotus_cmd = "lotus view -s \\#{s_arg} -e \\#{env} -a greenhouse -G"
       lotus_cmd += " -r \\#{r_arg}" if r_arg
       yaml_output = nil
       Open3.popen3(lotus_cmd) do |_stdin, stdout, stderr, wait_thr|

@@ -62,8 +62,8 @@ class KeySearcher
     current_value = options[:value]
 
     group_path_array = build_corresponding_group_path(path_array)
-    return :white unless group_path_array  # No corresponding group section
-    
+    return :white unless group_path_array # No corresponding group section
+
     group_path_str = (group_path_array + [key]).join('.')
     group_value = get_value_from_path(search_data, group_path_str)
 
@@ -79,8 +79,8 @@ class KeySearcher
     search_data = options[:search_data]
 
     env_path_array = build_corresponding_env_path(path_array)
-    return :green unless env_path_array  # No corresponding env section
-    
+    return :green unless env_path_array # No corresponding env section
+
     env_path_str = (env_path_array + [key]).join('.')
     env_value = get_value_from_path(search_data, env_path_str)
 
@@ -92,16 +92,16 @@ class KeySearcher
   def self.build_corresponding_group_path(path_array)
     if path_array.first == 'configs'
       # No group_configs section exists in lotus YAML
-      nil  
+      nil
     elsif path_array.first == 'secrets'
       ['group_secrets'] + path_array[1..]
     end
   end
 
   def self.build_corresponding_env_path(path_array)
-    if path_array.first == 'group_secrets'
-      ['secrets'] + path_array[1..]
-    end
+    return unless path_array.first == 'group_secrets'
+
+    ['secrets'] + path_array[1..]
   end
 
   def self.get_value_from_path(data, path)
@@ -136,7 +136,7 @@ class KeySearcher
     obj.is_a?(Hash) ? obj['group'] : nil
   end
 
-  def self.search(obj, search_str, path = [], results = [], env: nil, expose: false,
+  def self.search(obj, search_str, _path = [], results = [], env: nil, expose: false,
                   root_obj: nil, insensitive: false, cache_manager: nil, search_data: nil)
     root_obj ||= obj
     search_data ||= obj
@@ -169,7 +169,8 @@ class KeySearcher
       next unless secret_key.is_a?(String)
 
       if match_key_with_case?(secret_key, search_str, insensitive)
-        handle_secret_match(results, secret_jobs, ['secrets'], secret_key, '{SECRET}', expose, env, search_data: search_data)
+        handle_secret_match(results, secret_jobs, ['secrets'], secret_key, '{SECRET}', expose, env,
+                            search_data: search_data)
       end
     end
   end
@@ -181,7 +182,8 @@ class KeySearcher
       next unless secret_key.is_a?(String)
 
       if match_key_with_case?(secret_key, search_str, insensitive)
-        handle_secret_match(results, secret_jobs, ['group_secrets'], secret_key, '{SECRET}', expose, env, search_data: search_data)
+        handle_secret_match(results, secret_jobs, ['group_secrets'], secret_key, '{SECRET}', expose, env,
+                            search_data: search_data)
       end
     end
   end

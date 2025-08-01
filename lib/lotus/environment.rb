@@ -2,29 +2,40 @@
 
 module Lotus
   class Environment
-    attr_reader :data
+    attr_reader :name, :data, :application
 
-    def initialize(yaml_hash)
-      @data = yaml_hash
+    def initialize(name, space: nil, region: nil, application: 'greenhouse')
+      @name = name
+      @space = space
+      @region = region
+      @application = application
+      @data = nil # Will be loaded later via fetch method
     end
 
     def self.from_yaml(yaml_obj)
-      new(yaml_obj)
+      # For backward compatibility with YAML loading
+      new(yaml_obj['environment'] || 'unknown')
     end
 
     def group
-      @data['group']
+      @data&.dig('group')
     end
 
     def configs
+      raise NoMethodError, 'undefined method `configs\' - requires data to be loaded first' if @data.nil?
+
       @data['configs'] || {}
     end
 
     def secret_keys
+      raise NoMethodError, 'undefined method `secret_keys\' - requires data to be loaded first' if @data.nil?
+
       Array(@data.dig('secrets', 'keys'))
     end
 
     def group_secret_keys
+      raise NoMethodError, 'undefined method `group_secret_keys\' - requires data to be loaded first' if @data.nil?
+
       Array(@data.dig('group_secrets', 'keys'))
     end
 
@@ -32,31 +43,39 @@ module Lotus
       @space || (@name.match?(/^(prod|staging)/) ? 'prod' : 'dev')
     end
 
-    def self.from_args(environment:, space: nil, region: nil, application: 'greenhouse')
-      # Set defaults for space (s_arg) and region (r_arg) based on logic from LotusRunner.get_lotus_args
-      space_val = if environment.start_with?('prod') || environment.start_with?('staging')
-                    'prod'
-                  else
-                    environment
-                  end
-      region_val = nil
-      if environment =~ /s(\d+)$/
+    def region
+      return @region if @region
+
+      # Extract region from environment name
+      if @name =~ /s(\d+)$/
         num = ::Regexp.last_match(1).to_i
-        if num.between?(1, 99)
-          region_val = 'use1'
-        elsif num.between?(101, 199)
-          region_val = 'euc1'
-        elsif num.between?(201, 299)
-          region_val = 'apse2'
-        end
+        return 'use1' if num.between?(1, 99)
+        return 'euc1' if num.between?(101, 199)
+        return 'apse2' if num.between?(201, 299)
+
+        return nil # Numbers outside defined ranges
       end
-      # Return a new instance with a hash containing these values
-      new({
-            'environment' => environment,
-            'space' => space || space_val,
-            'region' => region || region_val,
-            'application' => application
-          })
+
+      # Default to use1 for environments without numbers
+      'use1'
+    end
+
+    def fetch
+      # Placeholder for future implementation
+      # This method would load @data from lotus commands
+      raise NotImplementedError, 'fetch method not yet implemented'
+    end
+
+    def group_name
+      # This would need @data to be loaded first
+      raise NoMethodError, 'undefined method `group_name\' - requires data to be loaded first' if @data.nil?
+
+      @data['group_name']
+    end
+
+    # Legacy class method for backward compatibility
+    def self.from_args(environment:, space: nil, region: nil, application: 'greenhouse')
+      new(environment, space: space, region: region, application: application)
     end
   end
 end

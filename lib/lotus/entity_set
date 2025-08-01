@@ -1,0 +1,25 @@
+module Lotus
+  class EntitySet
+    attr_reader :entities
+
+    def initialize(entities = [])
+      @entities = entities
+    end
+
+    def add(entity)
+      @entities << entity
+    end
+
+    def remove(entity)
+      @entities.delete(entity)
+    end
+
+    def find_by_id(id)
+      @entities.find { |entity| entity.id == id }
+    end
+
+    def all
+      @entities
+    end
+  end
+end

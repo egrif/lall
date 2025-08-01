@@ -168,12 +168,12 @@ module Lall
 
     def setup_encryption
       if File.exist?(@secret_key_file)
-        @secret_key = File.read(@secret_key_file)
+        @secret_key = File.binread(@secret_key_file)
       else
         # Generate a new secret key
         @secret_key = OpenSSL::Random.random_bytes(32)
         FileUtils.mkdir_p(File.dirname(@secret_key_file))
-        File.write(@secret_key_file, @secret_key)
+        File.binwrite(@secret_key_file, @secret_key)
         File.chmod(0o600, @secret_key_file) # Secure permissions
       end
     end

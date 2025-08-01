@@ -491,7 +491,7 @@ class LallCLI
       ['GROUP', group_name, s_arg, region].join('.')
     else
       # Fallback
-      [type.upcase, (group_name || env), s_arg, region].join('.')
+      [type.upcase, group_name || env, s_arg, region].join('.')
     end
   end
 

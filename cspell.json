@@ -43,7 +43,9 @@
     "backend",
     "backends",
     "caching",
-    "cacheable"
+    "cacheable",
+    "bytesize",
+    "dbsize"
   ],
   "flagWords": [],
   "ignorePaths": [

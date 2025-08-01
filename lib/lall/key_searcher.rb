@@ -139,7 +139,8 @@ class KeySearcher
     search_data ||= obj
     secret_jobs = []
 
-    perform_object_search(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive, search_data, cache_manager)
+    perform_object_search(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive, search_data,
+                          cache_manager)
     process_secret_jobs(secret_jobs, root_obj, results, cache_manager) if expose && env && !secret_jobs.empty?
 
     results
@@ -149,7 +150,8 @@ class KeySearcher
                                  search_data, cache_manager)
     case obj
     when Hash
-      search_hash_object(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive, search_data, cache_manager)
+      search_hash_object(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive, search_data,
+                         cache_manager)
     when Array
       search_array_object(obj, search_str, path, results, secret_jobs, env, expose, search_data)
     end
@@ -166,7 +168,8 @@ class KeySearcher
         handle_secret_match(results, secret_jobs, path, k, v, expose, env, search_data: search_data)
       end
       search(v, search_str, path + [k], results, env: env, expose: expose, root_obj: root_obj,
-                                                 insensitive: insensitive, cache_manager: cache_manager, search_data: search_data)
+                                                 insensitive: insensitive, cache_manager: cache_manager,
+                                                 search_data: search_data)
     end
   end
 
@@ -182,7 +185,7 @@ class KeySearcher
 
   def self.process_secret_jobs(secret_jobs, root_obj, results, cache_manager = nil)
     return if secret_jobs.empty?
-    
+
     group_name = find_group(root_obj)
     mutex = Mutex.new
     threads = create_secret_fetch_threads(secret_jobs, group_name, mutex, results, cache_manager)
@@ -202,9 +205,7 @@ class KeySearcher
     s_arg, r_arg = Lotus::Runner.get_lotus_args(job[:env])
 
     secret_val = try_cache_lookup(cache_manager, job, group, s_arg, r_arg)
-    if secret_val.nil?
-      secret_val = fetch_and_cache_secret(cache_manager, job, group, s_arg, r_arg)
-    end
+    secret_val = fetch_and_cache_secret(cache_manager, job, group, s_arg, r_arg) if secret_val.nil?
 
     update_secret_results(mutex, results, job, secret_val)
   end

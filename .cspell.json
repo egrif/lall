@@ -62,7 +62,9 @@
     "unshift",
     "subkey",
     "subvalue",
-    "moneta"
+    "moneta",
+    "bytesize",
+    "dbsize"
   ],
   "ignorePaths": [
     "node_modules/**",

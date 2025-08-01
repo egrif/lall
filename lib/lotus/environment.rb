@@ -28,7 +28,9 @@ module Lotus
       Array(@data.dig('group_secrets', 'keys'))
     end
 
-    # Add more convenience methods as needed
+    def space
+      @space || (@name.match?(/^(prod|staging)/) ? 'prod' : 'dev')
+    end
 
     def self.from_args(environment:, space: nil, region: nil, application: 'greenhouse')
       # Set defaults for space (s_arg) and region (r_arg) based on logic from LotusRunner.get_lotus_args

@@ -64,7 +64,8 @@
     "subvalue",
     "moneta",
     "bytesize",
-    "dbsize"
+    "dbsize",
+    "APAC"
   ],
   "ignorePaths": [
     "node_modules/**",

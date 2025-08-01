@@ -19,6 +19,16 @@ Lall is a Ruby CLI tool for comparing YAML configuration values across multiple 
 
 ## Key Patterns
 
+### Value Retrieval Logic
+- For an environment we will match to:
+    - `configs` section for environment-specific values
+    - `secrets` section for environment secrets
+    - `group_secrets` section for group-specific secrets
+- a 'config` match will select that key-value pair
+- a `secrets` match will use the matched string to issue a `get secret` command to the environment to find the value of that secret
+- a `group_secrets` match will use the matched string to issue a `get secret` command to the group to find the value of that secret
+
+
 ### Lotus Integration
 The external `lotus` CLI is the primary data source. Commands follow specific patterns:
 ```ruby
@@ -106,7 +116,7 @@ npx cspell .
 bundle exec rubocop
 ```
 
-### GIT management
+### GIT management for new release
 - Use feature branches for all changes
 - Follow conventional commit messages
 - bump version before creating a PR

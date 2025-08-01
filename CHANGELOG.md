@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2025-08-01
+
+### Fixed
+- **Environment#space Method**: Fixed operator precedence bug where explicit space parameter was ignored
+- **Environment#space Method**: Fixed undefined variable reference (environment → @name)
+- **Code Alignment**: Removed non-existent group_configs operations from CLI and KeySearcher to match actual lotus YAML structure
+
+### Changed
+- **KeySearcher Refactoring**: Replaced recursive search with direct section targeting for better performance and clarity
+- **Comprehensive Documentation**: Added detailed GitHub Copilot instructions for AI agent development workflows
+
+### Technical
+- Complete test suite rewrite for Environment class to match current implementation
+- All 144 tests passing with 100% compatibility
+- Code style and spelling compliance verified
+
 ## [0.6.0] - 2025-07-31
 
 ### Added

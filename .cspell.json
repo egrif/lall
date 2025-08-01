@@ -65,7 +65,9 @@
     "moneta",
     "bytesize",
     "dbsize",
-    "APAC"
+    "APAC",
+    "binread",
+    "binwrite"
   ],
   "ignorePaths": [
     "node_modules/**",

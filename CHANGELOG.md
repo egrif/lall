@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-07-31
+
+### Added
+- **Human-Readable Cache Keys**: Complete redesign of cache key format for transparency and debugging
+  - **New Format**: `lall-cache.ENV.prod-s9.prod.use1` (dot-separated, human-readable)
+  - **Old Format**: `lall-cache:a1b2c3d4...` (SHA256 hashed, opaque)
+  - Cache keys now follow structured format: `<prefix>.<type>.<environment_or_group>.<space>.<region>[.<secret_key>]`
+- **Separate Secret Caching System**: Individual encrypted cache entries for each secret
+  - **Environment Secrets**: `lall-cache.ENV-SECRET.prod-s9.prod.use1.DATABASE_MAIN_URL`
+  - **Group Secrets**: `lall-cache.GROUP-SECRET.core-group.prod.use1.API_KEY`
+  - Secrets cached independently for better performance and granular access
+- **Enhanced Cache Statistics**: Comprehensive cache size reporting with human-readable formatting
+  - Total cache keys count and prefixed keys count
+  - Cache size in bytes with automatic unit conversion (B, KB, MB, GB, TB)
+  - Example: "Cache Size: 22 keys, 218.1 KB"
+- **Region Defaulting**: All cache keys now include region with 'use1' as default fallback
+  - Ensures consistent cache key format across all environments
+  - Backward compatibility for environments without explicit regions
+
+### Changed
+- **Cache Key Generation**: Removed SHA256 hashing in favor of human-readable dot notation
+- **Secret Caching Architecture**: Secrets now cached separately from environment data
+- **Cache Statistics Display**: Enhanced `--cache-stats` output with size information and formatting
+- **Cache Manager Parameter Passing**: Fixed recursive search calls to properly pass cache manager
+
+### Fixed
+- **Cache Manager Parameter Bug**: Fixed issue where cache manager wasn't passed through recursive search calls
+- **Secret Caching**: Resolved problem where secrets weren't being cached under their own keys
+- **Region Consistency**: Ensured all cache keys include proper region information
+
+### Security
+- **AES-256-GCM Encryption**: Secret values encrypted with industry-standard encryption
+- **Selective Encryption**: Only secret values encrypted, cache keys remain human-readable
+- **Key Management**: Secure 32-byte random key generation and storage
+
+### Technical Details
+- Removed `digest` dependency as SHA256 hashing is no longer used
+- Enhanced `CacheManager` with size calculation methods for Redis and Moneta backends
+- Updated `KeySearcher` with proper parameter passing and separate secret processing
+- Added comprehensive debug output for secret caching operations
+- Maintained 100% test coverage (153 examples passing) throughout major refactoring
+
+### Breaking Changes
+- **Cache Key Format**: Existing cache entries will be regenerated with new human-readable format
+- **Cache Invalidation**: All existing cache will be cleared on first run with new version
+
 ## [0.5.0] - 2025-07-31
 
 ### Added

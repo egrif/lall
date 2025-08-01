@@ -139,24 +139,24 @@ class KeySearcher
     search_data ||= obj
     secret_jobs = []
 
-    perform_object_search(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive, search_data)
+    perform_object_search(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive, search_data, cache_manager)
     process_secret_jobs(secret_jobs, root_obj, results, cache_manager) if expose && env && !secret_jobs.empty?
 
     results
   end
 
   def self.perform_object_search(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive,
-                                 search_data)
+                                 search_data, cache_manager)
     case obj
     when Hash
-      search_hash_object(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive, search_data)
+      search_hash_object(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive, search_data, cache_manager)
     when Array
       search_array_object(obj, search_str, path, results, secret_jobs, env, expose, search_data)
     end
   end
 
   def self.search_hash_object(obj, search_str, path, results, secret_jobs, env, expose, root_obj, insensitive,
-                              search_data)
+                              search_data, cache_manager)
     obj.each do |k, v|
       key_str = k.to_s
       search_term = insensitive ? search_str.downcase : search_str
@@ -166,7 +166,7 @@ class KeySearcher
         handle_secret_match(results, secret_jobs, path, k, v, expose, env, search_data: search_data)
       end
       search(v, search_str, path + [k], results, env: env, expose: expose, root_obj: root_obj,
-                                                 insensitive: insensitive, search_data: search_data)
+                                                 insensitive: insensitive, cache_manager: cache_manager, search_data: search_data)
     end
   end
 
@@ -181,6 +181,8 @@ class KeySearcher
   end
 
   def self.process_secret_jobs(secret_jobs, root_obj, results, cache_manager = nil)
+    return if secret_jobs.empty?
+    
     group_name = find_group(root_obj)
     mutex = Mutex.new
     threads = create_secret_fetch_threads(secret_jobs, group_name, mutex, results, cache_manager)
@@ -197,29 +199,76 @@ class KeySearcher
 
   def self.fetch_and_update_secret(job, group_name, mutex, results, cache_manager)
     group = job[:path].include?('group_secrets') ? group_name : nil
+    s_arg, r_arg = Lotus::Runner.get_lotus_args(job[:env])
 
-    # Try cache first if available
-    secret_val = nil
-    if cache_manager
-      cache_key = "secret:#{job[:env]}:#{job[:key]}"
-      cache_key += ":#{group}" if group
-      secret_val = cache_manager.get(cache_key, is_secret: true)
-    end
-
-    # Fetch from lotus if not cached
+    secret_val = try_cache_lookup(cache_manager, job, group, s_arg, r_arg)
     if secret_val.nil?
-      secret_val = Lotus::Runner.secret_get(job[:env], job[:key], group: group)
-      secret_val = parse_secret_value(secret_val)
-
-      # Cache the secret if cache manager is available
-      if cache_manager && secret_val
-        cache_key = "secret:#{job[:env]}:#{job[:key]}"
-        cache_key += ":#{group}" if group
-        cache_manager.set(cache_key, secret_val, is_secret: true)
-      end
+      secret_val = fetch_and_cache_secret(cache_manager, job, group, s_arg, r_arg)
     end
 
     update_secret_results(mutex, results, job, secret_val)
+  end
+
+  def self.try_cache_lookup(cache_manager, job, group, s_arg, r_arg)
+    return nil unless cache_manager
+
+    env_secret_key = generate_secret_cache_key('ENV-SECRET', job[:env], s_arg, r_arg, job[:key])
+    secret_val = cache_manager.get(env_secret_key)
+
+    if group
+      group_secret_key = generate_secret_cache_key('GROUP-SECRET', group, s_arg, r_arg, job[:key])
+      secret_val ||= cache_manager.get(group_secret_key)
+    end
+
+    secret_val
+  end
+
+  def self.fetch_and_cache_secret(cache_manager, job, group, s_arg, r_arg)
+    # Try environment secret first
+    secret_val = fetch_env_secret(cache_manager, job, s_arg, r_arg)
+
+    # Try group secret if environment secret not found and we have a group
+    secret_val ||= fetch_group_secret(cache_manager, job, group, s_arg, r_arg) if group
+
+    secret_val
+  end
+
+  def self.fetch_env_secret(cache_manager, job, s_arg, r_arg)
+    env_secret = Lotus::Runner.secret_get(job[:env], job[:key])
+    return nil unless env_secret
+
+    secret_val = parse_secret_value(env_secret)
+    cache_env_secret(cache_manager, job, s_arg, r_arg, secret_val)
+    secret_val
+  end
+
+  def self.fetch_group_secret(cache_manager, job, group, s_arg, r_arg)
+    group_secret = Lotus::Runner.secret_get(job[:env], job[:key], group: group)
+    return nil unless group_secret
+
+    secret_val = parse_secret_value(group_secret)
+    cache_group_secret(cache_manager, group, s_arg, r_arg, job[:key], secret_val)
+    secret_val
+  end
+
+  def self.cache_env_secret(cache_manager, job, s_arg, r_arg, secret_val)
+    return unless cache_manager
+
+    env_secret_key = generate_secret_cache_key('ENV-SECRET', job[:env], s_arg, r_arg, job[:key])
+    cache_manager.set(env_secret_key, secret_val, is_secret: true)
+  end
+
+  def self.cache_group_secret(cache_manager, group, s_arg, r_arg, key, secret_val)
+    return unless cache_manager
+
+    group_secret_key = generate_secret_cache_key('GROUP-SECRET', group, s_arg, r_arg, key)
+    cache_manager.set(group_secret_key, secret_val, is_secret: true)
+  end
+
+  def self.generate_secret_cache_key(type, env_or_group, s_arg, r_arg, secret_key)
+    # Ensure every key has a region - use 'use1' as default for base environments
+    region = r_arg || 'use1'
+    [type, env_or_group, s_arg, region, secret_key].join('.')
   end
 
   def self.parse_secret_value(secret_val)

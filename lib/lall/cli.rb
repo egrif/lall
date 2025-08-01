@@ -254,13 +254,43 @@ class LallCLI
   def show_cache_stats_and_exit
     stats = @cache_manager.stats
     puts 'Cache Statistics:'
+    display_basic_cache_stats(stats)
+    display_cache_size_stats(stats)
+    exit 0
+  end
+
+  def display_basic_cache_stats(stats)
     puts "  Backend: #{stats[:backend]}"
     puts "  Enabled: #{stats[:enabled]}"
     puts "  TTL: #{stats[:ttl]} seconds"
     puts "  Prefix: #{stats[:cache_prefix]}"
     puts "  Cache Dir: #{stats[:cache_dir]}" if stats[:cache_dir]
     puts "  Redis URL: #{stats[:redis_url]}" if stats[:redis_url]
-    exit 0
+  end
+
+  def display_cache_size_stats(stats)
+    return unless stats[:cache_size]
+
+    cache_size = stats[:cache_size]
+    puts '  Cache Size:'
+    puts "    Total Keys: #{cache_size[:total_keys]}"
+    puts "    Prefixed Keys: #{cache_size[:prefixed_keys]}"
+    puts "    Total Size: #{format_bytes(cache_size[:total_size_bytes])}"
+  end
+
+  def format_bytes(bytes)
+    return '0 B' if bytes.zero?
+
+    units = %w[B KB MB GB TB]
+    size = bytes.to_f
+    unit_index = 0
+
+    while size >= 1024 && unit_index < units.length - 1
+      size /= 1024.0
+      unit_index += 1
+    end
+
+    format('%<size>.1f %<unit>s', size: size, unit: units[unit_index])
   end
 
   def init_user_settings_and_exit
@@ -451,17 +481,18 @@ class LallCLI
   def generate_cache_key(type, env, group_name = nil)
     s_arg, r_arg = Lotus::Runner.get_lotus_args(env)
 
-    key_parts = [type, s_arg]
-    key_parts << r_arg if r_arg
-    key_parts << 'greenhouse' # -a value is always greenhouse
+    # Ensure every key has a region - use 'use1' as default for base environments
+    region = r_arg || 'use1'
 
+    # New format: <type>.<environment_or_group>.<space>.<region>
     if type == 'env'
-      key_parts << env
+      ['ENV', env, s_arg, region].join('.')
     elsif type == 'group' && group_name
-      key_parts << group_name
+      ['GROUP', group_name, s_arg, region].join('.')
+    else
+      # Fallback
+      [type.upcase, (group_name || env), s_arg, region].join('.')
     end
-
-    key_parts.join(':')
   end
 
   def perform_search(search_data, env)

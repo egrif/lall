@@ -3,7 +3,6 @@
 require 'redis'
 require 'moneta'
 require 'fileutils'
-require 'digest'
 require 'openssl'
 require 'base64'
 require 'yaml'
@@ -120,7 +119,8 @@ module Lall
         ttl: @ttl,
         cache_prefix: @cache_prefix,
         cache_dir: @backend_type == :redis ? nil : @cache_dir,
-        redis_url: @backend_type == :redis ? @redis_url&.gsub(%r{://.*@}, '://***@') : nil
+        redis_url: @backend_type == :redis ? @redis_url&.gsub(%r{://.*@}, '://***@') : nil,
+        cache_size: calculate_cache_size
       }
     end
 
@@ -208,15 +208,15 @@ module Lall
     end
 
     def cache_key(key)
-      # Create a consistent cache key with prefix using SHA256
-      "#{@cache_prefix}:#{Digest::SHA256.hexdigest(key)}"
+      # Use human-readable cache keys with prefix (no hashing)
+      "#{@cache_prefix}.#{key}"
     end
 
     def clear_prefixed_keys
       case @backend_type
       when :redis
         # For Redis, use pattern matching to delete only keys with our prefix
-        pattern = "#{@cache_prefix}:*"
+        pattern = "#{@cache_prefix}.*"
         keys = @cache_store.instance_variable_get(:@redis).keys(pattern)
         @cache_store.instance_variable_get(:@redis).del(keys) unless keys.empty?
       when :moneta
@@ -237,12 +237,80 @@ module Lall
           key = CGI.unescape(filename)
 
           # Check if this key starts with our prefix
-          @cache_store.delete(key) if key.start_with?("#{@cache_prefix}:")
+          @cache_store.delete(key) if key.start_with?("#{@cache_prefix}.")
         rescue StandardError
           # If we can't process the file, skip it
           next
         end
       end
+    end
+
+    def calculate_cache_size
+      case @backend_type
+      when :redis
+        calculate_redis_cache_size
+      when :moneta
+        calculate_moneta_cache_size
+      else
+        { total_keys: 0, prefixed_keys: 0, total_size_bytes: 0 }
+      end
+    end
+
+    def calculate_redis_cache_size
+      return { total_keys: 0, prefixed_keys: 0, total_size_bytes: 0 } unless @redis_url
+
+      begin
+        redis_client = @cache_store.instance_variable_get(:@redis)
+        pattern = "#{@cache_prefix}.*"
+        prefixed_keys = redis_client.keys(pattern)
+
+        total_size = 0
+        prefixed_keys.each do |key|
+          total_size += redis_client.memory('usage', key) || 0
+        rescue Redis::CommandError
+          # If MEMORY USAGE is not supported, estimate based on string length
+          total_size += redis_client.get(key)&.bytesize || 0
+        end
+
+        {
+          total_keys: redis_client.dbsize,
+          prefixed_keys: prefixed_keys.count,
+          total_size_bytes: total_size
+        }
+      rescue StandardError
+        { total_keys: 0, prefixed_keys: 0, total_size_bytes: 0 }
+      end
+    end
+
+    def calculate_moneta_cache_size
+      return { total_keys: 0, prefixed_keys: 0, total_size_bytes: 0 } unless File.directory?(@cache_dir)
+
+      total_files = 0
+      prefixed_files = 0
+      total_size = 0
+
+      Dir.glob(File.join(@cache_dir, '*')).each do |file_path|
+        next unless File.file?(file_path)
+
+        total_files += 1
+        file_size = File.size(file_path)
+        total_size += file_size
+
+        begin
+          filename = File.basename(file_path)
+          key = CGI.unescape(filename)
+          prefixed_files += 1 if key.start_with?("#{@cache_prefix}.")
+        rescue StandardError
+          # Skip files we can't decode
+          next
+        end
+      end
+
+      {
+        total_keys: total_files,
+        prefixed_keys: prefixed_files,
+        total_size_bytes: total_size
+      }
     end
   end
   # rubocop:enable Metrics/ClassLength

@@ -57,13 +57,6 @@ Metrics/ParameterLists:
   Exclude:
     - 'lib/lall/key_searcher.rb'
 
-# Ignore empty placeholder files
-Lint/EmptyFile:
-  Exclude:
-    - 'lib/lall/environment.rb'
-    - 'lib/lall/group.rb'
-    - 'lib/lall/lotus_runner.rb'
-
 # Gemspec development dependencies are acceptable in gemspec files
 Gemspec/DevelopmentDependencies:
   Enabled: false

@@ -423,7 +423,7 @@ class LallCLI
 
   def fetch_and_cache_env_data(env, env_cache_key)
     # Fetch fresh environment data
-    yaml_data = Lotus::Runner.fetch_yaml(env)
+    yaml_data = Lotus::Runner.fetch_env_yaml(env)
     return {} if yaml_data.nil?
 
     search_data = build_search_data(yaml_data)
@@ -450,8 +450,7 @@ class LallCLI
     group_name = yaml_data['group']
     group_data = extract_group_data(env, group_name)
 
-    # Merge group configs and secrets into search_data
-    search_data['group_configs'] = group_data['configs'] if group_data['configs']
+    # Merge group secrets into search_data (group configs don't exist in lotus YAML)
     search_data['group_secrets'] = group_data['secrets'] if group_data['secrets']
   end
 

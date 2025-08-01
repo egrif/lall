@@ -47,7 +47,7 @@ class KeySearcher
 
     path_array = options[:path]
     is_env_value = %w[configs secrets].include?(path_array.first)
-    is_group_value = %w[group_configs group_secrets].include?(path_array.first)
+    is_group_value = %w[group_secrets].include?(path_array.first)
 
     return determine_env_value_color(options) if is_env_value
     return determine_group_value_color(options) if is_group_value
@@ -62,6 +62,8 @@ class KeySearcher
     current_value = options[:value]
 
     group_path_array = build_corresponding_group_path(path_array)
+    return :white unless group_path_array  # No corresponding group section
+    
     group_path_str = (group_path_array + [key]).join('.')
     group_value = get_value_from_path(search_data, group_path_str)
 
@@ -77,6 +79,8 @@ class KeySearcher
     search_data = options[:search_data]
 
     env_path_array = build_corresponding_env_path(path_array)
+    return :green unless env_path_array  # No corresponding env section
+    
     env_path_str = (env_path_array + [key]).join('.')
     env_value = get_value_from_path(search_data, env_path_str)
 
@@ -87,16 +91,15 @@ class KeySearcher
 
   def self.build_corresponding_group_path(path_array)
     if path_array.first == 'configs'
-      ['group_configs'] + path_array[1..]
+      # No group_configs section exists in lotus YAML
+      nil  
     elsif path_array.first == 'secrets'
       ['group_secrets'] + path_array[1..]
     end
   end
 
   def self.build_corresponding_env_path(path_array)
-    if path_array.first == 'group_configs'
-      ['configs'] + path_array[1..]
-    elsif path_array.first == 'group_secrets'
+    if path_array.first == 'group_secrets'
       ['secrets'] + path_array[1..]
     end
   end
@@ -142,7 +145,6 @@ class KeySearcher
     # Direct search in specific sections instead of recursive tree traversal
     search_configs_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
     search_secrets_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
-    search_group_configs_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
     search_group_secrets_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
 
     process_secret_jobs(secret_jobs, root_obj, results, cache_manager) if expose && env && !secret_jobs.empty?
@@ -168,16 +170,6 @@ class KeySearcher
 
       if match_key_with_case?(secret_key, search_str, insensitive)
         handle_secret_match(results, secret_jobs, ['secrets'], secret_key, '{SECRET}', expose, env, search_data: search_data)
-      end
-    end
-  end
-
-  def self.search_group_configs_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
-    return unless obj.is_a?(Hash) && obj['group_configs']
-
-    obj['group_configs'].each do |key, value|
-      if match_key_with_case?(key.to_s, search_str, insensitive)
-        handle_secret_match(results, secret_jobs, ['group_configs'], key, value, expose, env, search_data: search_data)
       end
     end
   end

@@ -145,8 +145,6 @@ module Lotus
       @data['group_secrets'] = { 'keys' => group_yaml_data['secrets']['keys'] }
     end
 
-    public
-
     def group_name
       @data&.dig('group')
     end

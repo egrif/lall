@@ -15,8 +15,45 @@ RSpec.describe Lall::CacheManager do
     }
   end
 
+  # Reset singleton state before each test
+  before do
+    described_class.reset!
+  end
+
   after do
+    described_class.reset!
     FileUtils.rm_rf(test_cache_dir) if Dir.exist?(test_cache_dir)
+  end
+
+  describe '.instance' do
+    it 'returns singleton instance' do
+      manager1 = described_class.instance(cache_config)
+      manager2 = described_class.instance
+      
+      expect(manager1).to be(manager2)
+    end
+
+    it 'creates new instance when options provided to existing instance' do
+      manager1 = described_class.instance
+      manager2 = described_class.instance(cache_config)
+      
+      expect(manager1).not_to be(manager2)
+    end
+
+    it 'returns default instance when no options provided' do
+      manager = described_class.instance
+      expect(manager).to be_a(described_class)
+    end
+  end
+
+  describe '.reset!' do
+    it 'clears singleton instance' do
+      manager1 = described_class.instance(cache_config)
+      described_class.reset!
+      manager2 = described_class.instance
+      
+      expect(manager1).not_to be(manager2)
+    end
   end
 
   describe '#initialize' do

@@ -18,6 +18,26 @@ module Lall
     DEFAULT_SECRET_KEY_FILE = '~/.lall/secret.key'
     DEFAULT_CACHE_PREFIX = 'lall-cache'
 
+    # Thread-safe singleton instance management
+    @instance = nil
+    @instance_mutex = Mutex.new
+
+    class << self
+      # Get or create singleton instance
+      def instance(options = {})
+        @instance_mutex.synchronize do
+          @instance = new(options) if @instance.nil? || !options.empty?
+          @instance
+        end
+      end
+
+      # Reset instance (primarily for testing)
+      def reset!
+        @instance_mutex.synchronize do
+          @instance = nil
+        end
+      end
+    end
     # rubocop:disable Metrics/AbcSize
     def initialize(options = {})
       @redis_url = options[:redis_url] || ENV.fetch('REDIS_URL', nil)
@@ -99,6 +119,37 @@ module Lall
 
       @cache_store.delete(cache_key(key))
       true
+    end
+
+    # Environment-specific cache operations
+    def get_env_data(environment)
+      return nil unless @enabled
+
+      env_key = build_env_cache_key(environment)
+      get(env_key)
+    end
+
+    def set_env_data(environment, data)
+      return false unless @enabled
+
+      env_key = build_env_cache_key(environment)
+      has_secrets = data.key?('secrets') || data.key?('group_secrets')
+      set(env_key, data, is_secret: has_secrets)
+    end
+
+    def get_group_data(group_name, application)
+      return nil unless @enabled
+
+      group_key = build_group_cache_key(group_name, application)
+      get(group_key)
+    end
+
+    def set_group_data(group_name, application, data)
+      return false unless @enabled
+
+      group_key = build_group_cache_key(group_name, application)
+      has_secrets = data['secrets'] && !data['secrets']['keys'].empty?
+      set(group_key, data, is_secret: has_secrets)
     end
 
     def clear_cache # rubocop:disable Naming/PredicateMethod
@@ -210,6 +261,14 @@ module Lall
     def cache_key(key)
       # Use human-readable cache keys with prefix (no hashing)
       "#{@cache_prefix}.#{key}"
+    end
+
+    def build_env_cache_key(environment)
+      "env:#{environment.name}:#{environment.application}"
+    end
+
+    def build_group_cache_key(group_name, application)
+      "group:#{group_name}:#{application}"
     end
 
     def clear_prefixed_keys

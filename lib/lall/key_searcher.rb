@@ -4,6 +4,7 @@
 require 'lotus/environment'
 require 'lotus/group'
 require 'lotus/runner'
+require_relative 'cache_manager'
 
 # rubocop:disable Metrics/ClassLength
 class KeySearcher
@@ -141,6 +142,7 @@ class KeySearcher
     root_obj ||= obj
     search_data ||= obj
     secret_jobs = []
+    cache_manager ||= Lall::CacheManager.instance
 
     # Direct search in specific sections instead of recursive tree traversal
     search_configs_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)

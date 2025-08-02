@@ -26,6 +26,29 @@ module Lall
       'expose' => 'LALL_EXPOSE'
     }.freeze
 
+    # Thread-safe singleton instance management
+    @instance = nil
+    @instance_mutex = Mutex.new
+
+    class << self
+      # Get or create singleton instance
+      def instance(cli_options = {})
+        return @instance if @instance && cli_options.empty?
+
+        @instance_mutex.synchronize do
+          @instance = new(cli_options) if @instance.nil? || !cli_options.empty?
+          @instance
+        end
+      end
+
+      # Clear singleton instance (mainly for testing)
+      def reset!
+        @instance_mutex.synchronize do
+          @instance = nil
+        end
+      end
+    end
+
     def initialize(cli_options = {})
       @cli_options = cli_options
       @user_settings = load_user_settings

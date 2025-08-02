@@ -3,6 +3,14 @@
 require 'spec_helper'
 
 RSpec.describe Lotus::Environment do
+  # Reset singleton state before each test
+  before do
+    Lall::CacheManager.reset!
+  end
+
+  after do
+    Lall::CacheManager.reset!
+  end
   describe '#initialize' do
     it 'stores the name and optional parameters' do
       env = Lotus::Environment.new('prod-s5', space: 'custom-space', region: 'use1', application: 'test-app')
@@ -125,7 +133,7 @@ RSpec.describe Lotus::Environment do
 
       it 'returns group name when data is loaded' do
         env = Lotus::Environment.new('prod')
-        env.instance_variable_set(:@data, { 'group_name' => 'test-group' })
+        env.instance_variable_set(:@data, { 'group' => 'test-group' })
         expect(env.group_name).to eq('test-group')
       end
     end
@@ -169,7 +177,10 @@ RSpec.describe Lotus::Environment do
   describe '#fetch' do
     let(:cache_manager) { double('CacheManager') }
     let(:env_with_cache) { Lotus::Environment.new('prod', cache_manager: cache_manager) }
-    let(:env_without_cache) { Lotus::Environment.new('prod') }
+    let(:env_without_cache) { 
+      require_relative '../../lib/lall/cli'
+      Lotus::Environment.new('prod', cache_manager: LallCLI::NullCacheManager.new) 
+    }
     
     let(:sample_env_yaml) do
       {
@@ -205,7 +216,7 @@ RSpec.describe Lotus::Environment do
           'secrets' => { 'keys' => ['api_key'] }
         }
         
-        expect(cache_manager).to receive(:get).with('env:prod:greenhouse').and_return(cached_data)
+        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(cached_data)
         expect(Lotus::Runner).not_to receive(:fetch_env_yaml)
         
         result = env_with_cache.fetch
@@ -214,30 +225,30 @@ RSpec.describe Lotus::Environment do
       end
 
       it 'fetches from lotus when cache misses and caches the result' do
-        expect(cache_manager).to receive(:get).with('env:prod:greenhouse').and_return(nil)
-        expect(cache_manager).to receive(:get).with('group:prod-group:greenhouse').and_return(nil)
+        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(nil)
+        expect(cache_manager).to receive(:get_group_data).with('prod-group', 'greenhouse').and_return(nil)
         expect(Lotus::Runner).to receive(:fetch_env_yaml).with('prod').and_return(sample_env_yaml)
         expect(Lotus::Runner).to receive(:fetch_group_yaml).with('prod', 'prod-group').and_return(sample_group_yaml)
-        expect(cache_manager).to receive(:set).with('env:prod:greenhouse', anything, is_secret: true)
-        expect(cache_manager).to receive(:set).with('group:prod-group:greenhouse', sample_group_yaml, is_secret: true)
+        expect(cache_manager).to receive(:set_env_data).with(env_with_cache, anything)
+        expect(cache_manager).to receive(:set_group_data).with('prod-group', 'greenhouse', sample_group_yaml)
         
         result = env_with_cache.fetch
         
         expect(result['configs']).to eq(sample_env_yaml['configs'])
         expect(result['secrets']).to eq({ 'keys' => sample_env_yaml['secrets']['keys'] })
-        expect(result['group_name']).to eq('prod-group')
+        expect(result['group']).to eq('prod-group')
       end
 
       it 'loads group data when environment has a group' do
         cached_data = {
           'configs' => { 'api_url' => 'https://api.prod.com' },
-          'group_name' => 'prod-group'
+          'group' => 'prod-group'
         }
         
-        expect(cache_manager).to receive(:get).with('env:prod:greenhouse').and_return(cached_data)
-        expect(cache_manager).to receive(:get).with('group:prod-group:greenhouse').and_return(nil)
+        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(cached_data)
+        expect(cache_manager).to receive(:get_group_data).with('prod-group', 'greenhouse').and_return(nil)
         expect(Lotus::Runner).to receive(:fetch_group_yaml).with('prod', 'prod-group').and_return(sample_group_yaml)
-        expect(cache_manager).to receive(:set).with('group:prod-group:greenhouse', sample_group_yaml, is_secret: true)
+        expect(cache_manager).to receive(:set_group_data).with('prod-group', 'greenhouse', sample_group_yaml)
         
         env_with_cache.fetch
         
@@ -248,11 +259,11 @@ RSpec.describe Lotus::Environment do
       it 'uses cached group data when available' do
         env_data = {
           'configs' => { 'api_url' => 'https://api.prod.com' },
-          'group_name' => 'prod-group'
+          'group' => 'prod-group'
         }
         
-        expect(cache_manager).to receive(:get).with('env:prod:greenhouse').and_return(env_data)
-        expect(cache_manager).to receive(:get).with('group:prod-group:greenhouse').and_return(sample_group_yaml)
+        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(env_data)
+        expect(cache_manager).to receive(:get_group_data).with('prod-group', 'greenhouse').and_return(sample_group_yaml)
         expect(Lotus::Runner).not_to receive(:fetch_group_yaml)
         
         env_with_cache.fetch
@@ -267,7 +278,7 @@ RSpec.describe Lotus::Environment do
           'secrets' => { 'keys' => ['api_key'] }
         }
         
-        expect(cache_manager).to receive(:get).with('env:prod:greenhouse').and_return(env_data_no_group)
+        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(env_data_no_group)
         
         result = env_with_cache.fetch
         
@@ -276,12 +287,12 @@ RSpec.describe Lotus::Environment do
       end
 
       it 'caches with is_secret: true when secrets are present' do
-        expect(cache_manager).to receive(:get).with('env:prod:greenhouse').and_return(nil)
-        expect(cache_manager).to receive(:get).with('group:prod-group:greenhouse').and_return(nil)
+        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(nil)
+        expect(cache_manager).to receive(:get_group_data).with('prod-group', 'greenhouse').and_return(nil)
         expect(Lotus::Runner).to receive(:fetch_env_yaml).with('prod').and_return(sample_env_yaml)
         expect(Lotus::Runner).to receive(:fetch_group_yaml).with('prod', 'prod-group').and_return(sample_group_yaml)
-        expect(cache_manager).to receive(:set).with('env:prod:greenhouse', anything, is_secret: true)
-        expect(cache_manager).to receive(:set).with('group:prod-group:greenhouse', sample_group_yaml, is_secret: true)
+        expect(cache_manager).to receive(:set_env_data).with(env_with_cache, anything)
+        expect(cache_manager).to receive(:set_group_data).with('prod-group', 'greenhouse', sample_group_yaml)
         
         env_with_cache.fetch
       end
@@ -291,9 +302,9 @@ RSpec.describe Lotus::Environment do
           'configs' => { 'api_url' => 'https://api.prod.com' }
         }
         
-        expect(cache_manager).to receive(:get).with('env:prod:greenhouse').and_return(nil)
+        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(nil)
         expect(Lotus::Runner).to receive(:fetch_env_yaml).with('prod').and_return(env_yaml_no_secrets)
-        expect(cache_manager).to receive(:set).with('env:prod:greenhouse', anything, is_secret: false)
+        expect(cache_manager).to receive(:set_env_data).with(env_with_cache, anything)
         
         env_with_cache.fetch
       end
@@ -322,7 +333,7 @@ RSpec.describe Lotus::Environment do
 
     context 'error handling' do
       it 'returns nil when lotus fetch fails' do
-        expect(cache_manager).to receive(:get).with('env:prod:greenhouse').and_return(nil)
+        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(nil)
         expect(Lotus::Runner).to receive(:fetch_env_yaml).with('prod').and_return(nil)
         
         result = env_with_cache.fetch
@@ -332,11 +343,11 @@ RSpec.describe Lotus::Environment do
       it 'handles group fetch failures gracefully' do
         env_data = {
           'configs' => { 'api_url' => 'https://api.prod.com' },
-          'group_name' => 'prod-group'
+          'group' => 'prod-group'
         }
         
-        expect(cache_manager).to receive(:get).with('env:prod:greenhouse').and_return(env_data)
-        expect(cache_manager).to receive(:get).with('group:prod-group:greenhouse').and_return(nil)
+        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(env_data)
+        expect(cache_manager).to receive(:get_group_data).with('prod-group', 'greenhouse').and_return(nil)
         expect(Lotus::Runner).to receive(:fetch_group_yaml).with('prod', 'prod-group').and_return(nil)
         
         result = env_with_cache.fetch
@@ -350,12 +361,12 @@ RSpec.describe Lotus::Environment do
       it 'uses custom application in cache keys' do
         custom_env = Lotus::Environment.new('prod', application: 'custom-app', cache_manager: cache_manager)
         
-        expect(cache_manager).to receive(:get).with('env:prod:custom-app').and_return(nil)
+        expect(cache_manager).to receive(:get_env_data).with(custom_env).and_return(nil)
         expect(Lotus::Runner).to receive(:fetch_env_yaml).with('prod').and_return(sample_env_yaml)
-        expect(cache_manager).to receive(:set).with('env:prod:custom-app', anything, is_secret: true)
-        expect(cache_manager).to receive(:get).with('group:prod-group:custom-app').and_return(nil)
+        expect(cache_manager).to receive(:set_env_data).with(custom_env, anything)
+        expect(cache_manager).to receive(:get_group_data).with('prod-group', 'custom-app').and_return(nil)
         expect(Lotus::Runner).to receive(:fetch_group_yaml).with('prod', 'prod-group').and_return(sample_group_yaml)
-        expect(cache_manager).to receive(:set).with('group:prod-group:custom-app', sample_group_yaml, is_secret: true)
+        expect(cache_manager).to receive(:set_group_data).with('prod-group', 'custom-app', sample_group_yaml)
         
         custom_env.fetch
       end

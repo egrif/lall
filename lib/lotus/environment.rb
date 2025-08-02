@@ -1,15 +1,18 @@
 # frozen_string_literal: true
 
+require_relative '../lall/cache_manager'
+
 module Lotus
   class Environment
-    attr_reader :name, :data, :application, :group
+    attr_reader :name, :data, :application, :group, :entity_set
 
-    def initialize(name, space: nil, region: nil, application: 'greenhouse', cache_manager: nil)
+    def initialize(name, space: nil, region: nil, application: 'greenhouse', cache_manager: nil, entity_set: nil)
       @name = name
       @space = space
       @region = region
       @application = application
-      @cache_manager = cache_manager
+      @cache_manager = cache_manager || Lall::CacheManager.instance
+      @entity_set = entity_set
       @data = nil # Will be loaded later via fetch method
       @group = nil # Will be loaded via fetch method
     end
@@ -66,11 +69,8 @@ module Lotus
     def fetch
       return @data if @data # Already loaded
 
-      # Generate cache key for environment data
-      env_cache_key = "env:#{@name}:#{@application}"
-
       # Try to get from cache first
-      cached_data = @cache_manager&.get(env_cache_key)
+      cached_data = @cache_manager&.get_env_data(self)
       if cached_data
         @data = cached_data
         load_group_from_data
@@ -78,12 +78,12 @@ module Lotus
       end
 
       # Cache miss - fetch from lotus
-      fetch_from_lotus(env_cache_key)
+      fetch_from_lotus
     end
 
     private
 
-    def fetch_from_lotus(env_cache_key)
+    def fetch_from_lotus
       # Fetch environment YAML data
       yaml_data = Lotus::Runner.fetch_env_yaml(@name)
       return nil unless yaml_data
@@ -94,11 +94,8 @@ module Lotus
       # Load group data if present
       load_group_from_data
 
-      # Cache the environment data with encryption if it contains secrets
-      return @data unless @cache_manager
-
-      has_secrets = @data.key?('secrets') || @data.key?('group_secrets')
-      @cache_manager.set(env_cache_key, @data, is_secret: has_secrets)
+      # Cache the environment data
+      @cache_manager&.set_env_data(self, @data)
 
       @data
     end
@@ -115,19 +112,16 @@ module Lotus
       end
 
       # Store group name for later group fetching
-      search_data['group_name'] = yaml_data['group'] if yaml_data['group']
+      search_data['group'] = yaml_data['group'] if yaml_data['group']
 
       search_data
     end
 
     def load_group_from_data
-      return unless @data&.dig('group_name')
-
-      group_name = @data['group_name']
-      group_cache_key = "group:#{group_name}:#{@application}"
+      return unless @data&.dig('group')
 
       # Try cache first
-      cached_group_data = @cache_manager&.get(group_cache_key)
+      cached_group_data = @cache_manager&.get_group_data(group_name, @application)
       if cached_group_data
         @group = Lotus::Group.new(cached_group_data)
         merge_group_secrets_into_data(cached_group_data)
@@ -142,10 +136,7 @@ module Lotus
       merge_group_secrets_into_data(group_yaml_data)
 
       # Cache group data
-      return unless @cache_manager
-
-      has_secrets = group_yaml_data['secrets'] && !group_yaml_data['secrets']['keys'].empty?
-      @cache_manager.set(group_cache_key, group_yaml_data, is_secret: has_secrets)
+      @cache_manager&.set_group_data(group_name, @application, group_yaml_data)
     end
 
     def merge_group_secrets_into_data(group_yaml_data)
@@ -157,7 +148,7 @@ module Lotus
     public
 
     def group_name
-      @data&.dig('group_name')
+      @data&.dig('group')
     end
   end
 end

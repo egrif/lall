@@ -21,8 +21,8 @@ class LallCLI
     @raw_options = {}
     setup_option_parser.parse!(argv)
 
-    # Initialize settings manager with CLI options
-    @settings = Lall::SettingsManager.new(@raw_options)
+    # Initialize singleton settings manager with CLI options
+    @settings = Lall::SettingsManager.instance(@raw_options)
 
     # Resolve final options using settings priority
     @options = resolve_all_options
@@ -204,7 +204,7 @@ class LallCLI
     @cache_manager = if cache_options[:enabled] == false
                        NullCacheManager.new
                      else
-                       Lall::CacheManager.new(cache_options)
+                       Lall::CacheManager.instance(cache_options)
                      end
   rescue StandardError => e
     warn "Warning: Cache initialization failed (#{e.message}). Disabling cache."
@@ -226,6 +226,23 @@ class LallCLI
     end
 
     def clear # rubocop:disable Naming/PredicateMethod
+      false
+    end
+
+    # Environment-specific cache operations (null implementations)
+    def get_env_data(_environment)
+      nil
+    end
+
+    def set_env_data(_environment, _data) # rubocop:disable Naming/PredicateMethod
+      false
+    end
+
+    def get_group_data(_group_name, _application)
+      nil
+    end
+
+    def set_group_data(_group_name, _application, _data) # rubocop:disable Naming/PredicateMethod
       false
     end
 
@@ -503,7 +520,6 @@ class LallCLI
       env: env,
       expose: @options[:expose],
       insensitive: @options[:insensitive],
-      cache_manager: @cache_manager,
       search_data: search_data
     )
   end

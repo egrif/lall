@@ -9,6 +9,19 @@ RSpec.describe LallCLI do
     stub_const('SETTINGS_PATH', settings_path)
     stub_const('SETTINGS', YAML.load_file(settings_path))
     stub_const('ENV_GROUPS', YAML.load_file(settings_path)['groups'])
+
+    # Mock all Lotus::Runner methods to prevent real lotus calls
+    allow(Lotus::Runner).to receive(:fetch_env_yaml).and_return({
+      'configs' => { 'test_key' => 'test_value' },
+      'secrets' => { 'keys' => ['secret_key'] },
+      'group' => 'test-group'
+    })
+    allow(Lotus::Runner).to receive(:fetch_group_yaml).and_return({
+      'configs' => { 'group_key' => 'group_value' },
+      'secrets' => { 'keys' => ['group_secret'] }
+    })
+    allow(Lotus::Runner).to receive(:secret_get).and_return('secret_value')
+    allow(Lotus::Runner).to receive(:ping).and_return(true)
   end
 
   describe '#initialize' do

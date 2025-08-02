@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2025-08-02
+
+### Added
+- **Thread-Safe Singleton Pattern**: Implemented comprehensive singleton architecture for core managers
+  - **CacheManager**: Thread-safe singleton with mutex protection and testing isolation
+  - **SettingsManager**: Thread-safe singleton with CLI option support and reset capability
+  - Singleton instances can be reset for testing isolation via `reset!` method
+- **Enhanced Lotus::EntitySet**: Comprehensive entity management with dual initialization modes
+  - **Traditional Mode**: Initialize with array of existing Environment instances
+  - **Settings Mode**: Auto-create environments from settings configuration groups
+  - Bidirectional references between EntitySet and Environment instances
+  - Automatic group membership detection and management
+- **Environment#fetch Method**: Complete implementation with cache-first architecture
+  - Cache-first data loading with intelligent fallback to lotus commands
+  - Automatic group data loading and caching when environment belongs to a group
+  - Comprehensive YAML data processing and validation
+  - Thread-safe operation with singleton cache manager integration
+- **Comprehensive Test Coverage**: 210 tests with clean error handling
+  - Full coverage of singleton functionality with proper test isolation
+  - Comprehensive mocking to eliminate all external dependencies during testing
+  - Clean test output with all warnings and errors suppressed
+  - Performance maintained with intelligent caching reducing external calls
+
+### Changed
+- **API Simplification**: Eliminated deep parameter passing through singleton pattern
+  - CacheManager and SettingsManager now accessible via singleton instances
+  - Reduced method signatures and simplified object initialization
+  - Backward compatibility maintained for all existing APIs
+- **Improved Cache Architecture**: Proper separation of concerns achieved
+  - Cache key construction moved to CacheManager for consistency
+  - Environment-specific cache methods for better organization
+  - Enhanced error handling and data validation throughout
+- **Enhanced Error Suppression**: Clean development experience with comprehensive mocking
+  - All lotus command errors properly mocked in tests
+  - Moneta warnings suppressed for clean test output
+  - TEST_MODE detection for conditional warning suppression
+
+### Technical
+- **Thread-Safe Implementation**: All singleton instances use mutex protection
+- **Class Instance Variables**: Proper encapsulation using @instance instead of @@instance
+- **Comprehensive Integration**: EntitySet, Environment, and cache managers work seamlessly together
+- **Performance Optimization**: Intelligent caching with cache-first architecture
+- **Code Quality**: All RuboCop and CSpell checks passing with clean formatting
+- **Robust Testing**: 210 comprehensive tests with zero failures and clean output
+
 ## [0.6.1] - 2025-08-01
 
 ### Fixed

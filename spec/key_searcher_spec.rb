@@ -148,7 +148,11 @@ RSpec.describe KeySearcher do
 
     context 'with expose option' do
       before do
-        allow(Lotus::Runner).to receive(:secret_get).and_return('SECRET_KEY=actual_secret_value')
+        # Use a more robust mock that works across thread boundaries
+        stub_const('MOCKED_SECRET_VALUE', 'SECRET_KEY=actual_secret_value')
+        allow(Lotus::Runner).to receive(:secret_get) do |_env, _key, group: nil|
+          MOCKED_SECRET_VALUE
+        end
       end
 
       it 'fetches actual secret values when expose is true' do

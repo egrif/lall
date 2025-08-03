@@ -36,6 +36,11 @@ A Ruby CLI tool for comparing YAML configuration values across multiple environm
 - **Environment groups**: Pre-configured groups of environments for quick multi-env queries
 - **Secret management**: Optionally expose actual secret values with the `-x/--expose` flag
 - **Performance optimized**: Threaded parallel fetching of environment data and secrets
+- **Thread-safe architecture** *(v0.7.0+)*: 
+  - Singleton pattern for core managers (CacheManager, SettingsManager)
+  - Thread-safe operations with mutex protection
+  - Enhanced EntitySet with dual initialization modes
+  - Cache-first Environment data loading with intelligent fallback
 - **Advanced caching system**: 
   - Redis backend (if `REDIS_URL` available) with Moneta file fallback
   - Encrypted secret storage using AES-256-GCM
@@ -572,7 +577,7 @@ The test suite covers:
      ↓
 3. Lotus Ping (connectivity check)
      ↓  
-4. Parallel Environment Fetching (Lotus::Runner.fetch_yaml)
+4. Parallel Environment Fetching (Lotus::Runner.fetch_env_yaml)
      ↓
 5. YAML Search & Secret Resolution (KeySearcher)
      ↓

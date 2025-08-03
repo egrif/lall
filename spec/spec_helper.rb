@@ -13,6 +13,14 @@ require_relative '../lib/lotus/environment'
 require_relative '../lib/lotus/group'
 
 RSpec.configure do |config|
+  # Suppress warnings during tests (including Moneta format string warnings)
+  config.around(:each) do |example|
+    original_verbose = $VERBOSE
+    $VERBOSE = nil
+    example.run
+    $VERBOSE = original_verbose
+  end
+
   config.expect_with :rspec do |expectations|
     expectations.include_chain_clauses_in_custom_matcher_descriptions = true
   end

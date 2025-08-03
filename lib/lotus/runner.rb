@@ -6,8 +6,9 @@ require 'yaml'
 module Lotus
   class Runner
     DEBUG_MODE = ARGV.include?('-d') || ARGV.include?('--debug') || ENV.fetch('DEBUG', nil)
+    TEST_MODE = ENV['RSPEC_CORE_VERSION'] || ENV['RAILS_ENV'] == 'test' || ENV['RACK_ENV'] == 'test'
 
-    def self.fetch_yaml(env)
+    def self.fetch_env_yaml(env)
       s_arg, r_arg = get_lotus_args(env)
       lotus_cmd = "lotus view -s \\#{s_arg} -e \\#{env} -a greenhouse -G"
       lotus_cmd += " -r \\#{r_arg}" if r_arg
@@ -15,7 +16,7 @@ module Lotus
       Open3.popen3(lotus_cmd) do |_stdin, stdout, stderr, wait_thr|
         yaml_output = stdout.read
         unless wait_thr.value.success?
-          warn "Failed to run lotus command for env '#{env}': \\#{stderr.read}"
+          warn "Failed to run lotus command for env '#{env}': \\#{stderr.read}" unless TEST_MODE
           return nil
         end
       end
@@ -31,7 +32,7 @@ module Lotus
       Open3.popen3(lotus_cmd) do |_stdin, stdout, stderr, wait_thr|
         yaml_output = stdout.read
         unless wait_thr.value.success?
-          warn "Failed to run lotus command for group '#{group_name}': \\#{stderr.read}"
+          warn "Failed to run lotus command for group '#{group_name}': \\#{stderr.read}" unless TEST_MODE
           return nil
         end
       end
@@ -71,7 +72,7 @@ module Lotus
       Open3.popen3(lotus_cmd) do |_stdin, stdout, stderr, wait_thr|
         secret_output = stdout.read
         unless wait_thr.value.success?
-          warn "Failed to run lotus secret get for env '#{env}', key '#{secret_key}': \\#{stderr.read}"
+          warn "Failed to run lotus secret get for env '#{env}', key '#{secret_key}': \\#{stderr.read}" unless TEST_MODE
           return nil
         end
       end

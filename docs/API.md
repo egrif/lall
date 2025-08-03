@@ -175,7 +175,7 @@ Executes lotus commands and parses responses.
 
 #### Class Methods
 
-##### `fetch_yaml(env)`
+##### `fetch_env_yaml(env)`
 Fetches YAML configuration for an environment.
 
 **Parameters:**
@@ -337,6 +337,225 @@ options.debug     # => false
 - Mutex synchronization for shared result objects
 - Individual thread failures don't affect other threads
 - Proper resource cleanup on thread completion
+
+---
+
+### Lall::CacheManager
+
+Thread-safe singleton for managing Redis/Moneta cache operations with encryption.
+
+#### Class Methods
+
+##### `instance(options = {})`
+Returns the singleton CacheManager instance.
+
+**Parameters:**
+- `options` (Hash): Configuration options (only used on first call or if instance needs recreation)
+  - `:redis_url` (String): Redis connection URL
+  - `:cache_dir` (String): Directory for file-based cache
+  - `:cache_prefix` (String): Cache key prefix
+  - `:ttl` (Integer): Time-to-live in seconds
+  - `:enabled` (Boolean): Enable/disable caching
+
+**Returns:**
+- `CacheManager` - Singleton instance
+
+##### `reset!`
+Clears the singleton instance (primarily for testing).
+
+#### Instance Methods
+
+##### `get_env_data(environment)`
+Retrieves cached environment data.
+
+**Parameters:**
+- `environment` (Lotus::Environment): Environment instance
+
+**Returns:**
+- `Hash|nil` - Cached environment data or nil if not found
+
+##### `set_env_data(environment, data)`
+Caches environment data.
+
+**Parameters:**
+- `environment` (Lotus::Environment): Environment instance
+- `data` (Hash): Environment data to cache
+
+##### `get_group_data(group_name, application)`
+Retrieves cached group data.
+
+**Parameters:**
+- `group_name` (String): Group name
+- `application` (String): Application name
+
+**Returns:**
+- `Hash|nil` - Cached group data or nil if not found
+
+---
+
+### Lall::SettingsManager
+
+Thread-safe singleton for managing configuration settings with priority-based resolution.
+
+#### Class Methods
+
+##### `instance(cli_options = {})`
+Returns the singleton SettingsManager instance.
+
+**Parameters:**
+- `cli_options` (Hash): CLI options (only used on first call or if instance needs recreation)
+
+**Returns:**
+- `SettingsManager` - Singleton instance
+
+##### `reset!`
+Clears the singleton instance (primarily for testing).
+
+#### Instance Methods
+
+##### `get(key, default = nil)`
+Retrieves a setting value using priority-based resolution.
+
+**Priority Order:**
+1. CLI options
+2. Environment variables
+3. User settings (`~/.lall/settings.yml`)
+4. Gem default settings
+
+**Parameters:**
+- `key` (String): Setting key (supports dot notation for nested keys)
+- `default` - Default value if key not found
+
+**Returns:**
+- Setting value or default
+
+**Examples:**
+```ruby
+settings = Lall::SettingsManager.instance
+settings.get('cache.ttl', 3600)        # => 3600 (from settings or default)
+settings.get('groups.staging')         # => ['staging', 'staging-s2', ...]
+```
+
+---
+
+### Lotus::Environment
+
+Represents a LOTUS environment with caching and data fetching capabilities.
+
+#### Methods
+
+##### `initialize(name, space: nil, region: nil, application: 'greenhouse', cache_manager: nil, entity_set: nil)`
+Creates a new Environment instance.
+
+**Parameters:**
+- `name` (String): Environment name
+- `space` (String): Environment space (defaults to auto-detected)
+- `region` (String): Environment region (defaults to auto-detected)
+- `application` (String): Application name (defaults to 'greenhouse')
+- `cache_manager` (CacheManager): Cache manager instance (defaults to singleton)
+- `entity_set` (EntitySet): Parent entity set reference
+
+##### `fetch`
+Loads environment data with cache-first architecture.
+
+**Process:**
+1. Returns existing data if already loaded
+2. Checks cache for environment data
+3. Falls back to lotus command if cache miss
+4. Loads associated group data if present
+5. Caches results for future use
+
+**Returns:**
+- `Hash|nil` - Environment data structure or nil if fetch fails
+
+##### `configs`
+Returns configuration key-value pairs.
+
+**Returns:**
+- `Hash` - Configuration data
+
+**Raises:**
+- `NoMethodError` - If data not loaded via fetch first
+
+##### `secret_keys`
+Returns array of environment secret keys.
+
+**Returns:**
+- `Array<String>` - Secret key names
+
+##### `group_secret_keys`
+Returns array of group secret keys.
+
+**Returns:**
+- `Array<String>` - Group secret key names
+
+---
+
+### Lotus::EntitySet
+
+Manages collections of environments with group operations and settings integration.
+
+#### Methods
+
+##### `initialize(entities_or_settings)`
+Creates an EntitySet with dual initialization modes.
+
+**Parameters:**
+- `entities_or_settings` (Array|SettingsManager): 
+  - `Array<Environment>`: Existing environment instances
+  - `SettingsManager`: Settings object for auto-creation
+
+**Automatic Environment Creation:**
+When initialized with SettingsManager, automatically creates Environment instances for all groups defined in settings.
+
+##### `entities`
+Returns all environment instances.
+
+**Returns:**
+- `Array<Lotus::Environment>` - All environments in the set
+
+##### `groups`
+Returns unique group names from all environments.
+
+**Returns:**
+- `Array<String>` - Unique group names
+
+**Examples:**
+```ruby
+# Traditional initialization
+envs = [env1, env2, env3]
+entity_set = Lotus::EntitySet.new(envs)
+
+# Settings-based initialization
+settings = Lall::SettingsManager.instance
+entity_set = Lotus::EntitySet.new(settings)  # Auto-creates environments
+```
+
+---
+
+### Lotus::Group
+
+Represents a LOTUS group with caching capabilities.
+
+#### Class Methods
+
+##### `from_args(name:, application: 'greenhouse', cache_manager: nil)`
+Creates a Group instance with specified parameters.
+
+**Parameters:**
+- `name` (String): Group name
+- `application` (String): Application name
+- `cache_manager` (CacheManager): Cache manager instance
+
+#### Instance Methods
+
+##### `fetch`
+Loads group data with caching support.
+
+**Returns:**
+- `Hash|nil` - Group data or nil if fetch fails
+
+---
 
 ## Performance Characteristics
 

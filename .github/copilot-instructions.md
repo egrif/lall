@@ -66,6 +66,8 @@ secrets:
 group_secrets:
   keys: ["key1", "key2"]  # Array of key names
 ```
+**Note:** actual examples of YAML data (environment.yam and group.yaml) might be found in the `tmp/reference` directory
+**Note:** the group name is stored in the `group` key of the environment yaml file
 
 Search methods target specific sections: `search_configs_section()`, `search_secrets_section()`, etc.
 

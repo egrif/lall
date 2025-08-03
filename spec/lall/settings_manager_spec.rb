@@ -3,6 +3,47 @@
 require 'spec_helper'
 
 RSpec.describe Lall::SettingsManager do
+  # Reset singleton state before each test
+  before do
+    described_class.reset!
+  end
+
+  after do
+    described_class.reset!
+  end
+
+  describe '.instance' do
+    it 'returns singleton instance' do
+      manager1 = described_class.instance({ truncate: 50 })
+      manager2 = described_class.instance
+      
+      expect(manager1).to be(manager2)
+    end
+
+    it 'creates new instance when options provided to existing instance' do
+      manager1 = described_class.instance
+      manager2 = described_class.instance({ truncate: 50 })
+      
+      expect(manager1).not_to be(manager2)
+      expect(manager2.instance_variable_get(:@cli_options)).to eq({ truncate: 50 })
+    end
+
+    it 'returns empty instance when no options provided to empty singleton' do
+      manager = described_class.instance
+      expect(manager.instance_variable_get(:@cli_options)).to eq({})
+    end
+  end
+
+  describe '.reset!' do
+    it 'clears singleton instance' do
+      manager1 = described_class.instance({ expose: true })
+      described_class.reset!
+      manager2 = described_class.instance
+      
+      expect(manager1).not_to be(manager2)
+    end
+  end
+
   describe '#get' do
     context 'with CLI options taking priority' do
       let(:cli_options) { { cache_ttl: 7200, debug: true } }

@@ -1,32 +1,27 @@
 # frozen_string_literal: true
 
-require_relative '../lall/cache_manager'
+require_relative 'entity'
 
 module Lotus
-  class Environment
-    attr_reader :name, :data, :application, :group, :entity_set
+  class Environment < Entity
+    attr_reader :group, :secrets
 
-    def initialize(name, space: nil, region: nil, application: 'greenhouse', cache_manager: nil, entity_set: nil)
-      @name = name
-      @space = space
-      @region = region
-      @application = application
-      @cache_manager = cache_manager || Lall::CacheManager.instance
-      @entity_set = entity_set
-      @data = nil # Will be loaded later via fetch method
-      @group = nil # Will be loaded via fetch method
+    def initialize(*args, **kwargs)
+      super
+      @secrets = []
     end
 
-    def self.from_yaml(yaml_obj)
-      # For backward compatibility with YAML loading
-      new(yaml_obj['environment'] || 'unknown')
+    # Backward compatibility: entity_set should return the parent EntitySet
+    def entity_set
+      @parent_entity
     end
 
-    # Legacy class method for backward compatibility
-    def self.from_args(environment:, space: nil, region: nil, application: 'greenhouse')
-      new(environment, space: space, region: region, application: application)
+    # Allow setting entity_set for backward compatibility
+    def entity_set=(value)
+      @parent_entity = value
     end
 
+    # attributes from data
     def configs
       raise NoMethodError, 'undefined method `configs` - requires data to be loaded first' if @data.nil?
 
@@ -45,6 +40,13 @@ module Lotus
       Array(@data.dig('group_secrets', 'keys'))
     end
 
+    def group_name
+      raise NoMethodError, 'undefined method `group_name` - requires data to be loaded first' if @data.nil?
+
+      @data&.dig('group')
+    end
+
+    # Environment defaults
     def space
       @space || (@name.match?(/^(prod|staging)/) ? 'prod' : 'dev')
     end
@@ -52,7 +54,7 @@ module Lotus
     def region
       return @region if @region
 
-      # Extract region from environment name
+      # Extract region from entity name
       if @name =~ /s(\d+)$/
         num = ::Regexp.last_match(1).to_i
         return 'use1' if num.between?(1, 99)
@@ -62,93 +64,92 @@ module Lotus
         return nil # Numbers outside defined ranges
       end
 
-      # Default to use1 for environments without numbers
+      # Default to use1 for entities without numbers
       'use1'
     end
 
-    def fetch
-      return @data if @data # Already loaded
+    # Implement abstract methods from Entity
+    def lotus_cmd
+      "lotus view -s #{space} -r #{region} -e #{@name} -a #{@application} -G"
+    end
 
-      # Try to get from cache first
-      cached_data = @cache_manager&.get_env_data(self)
-      if cached_data
-        @data = cached_data
-        load_group_from_data
-        return @data
+    def lotus_parse(raw_data)
+      # Build the data structure expected by the system
+      raw_data
+    end
+
+    def fetch_secrets(pattern = '*')
+      raise NoMethodError, 'undefined method `fetch_secrets` - requires data to be loaded first' if @data.nil?
+
+      # Find matching secret keys from both environment and group secrets
+      matching_keys = find_matching_secret_keys(pattern)
+
+      return [] if matching_keys.empty?
+
+      # Create Secret instances for each matching key
+      secret_entities = matching_keys.map do |key_info|
+        require_relative 'secret'
+        Lotus::Secret.new(
+          key_info[:key],
+          space: space,
+          region: region,
+          application: @application,
+          parent: key_info[:source_entity]
+        )
       end
 
-      # Cache miss - fetch from lotus
-      fetch_from_lotus
+      # Fetch all secrets in parallel using Runner
+      require_relative 'runner'
+      Lotus::Runner.fetch_all(secret_entities)
+
+      # Store secrets and return them
+      @secrets = secret_entities
+      secret_entities
     end
 
     private
 
-    def fetch_from_lotus
-      # Fetch environment YAML data
-      yaml_data = Lotus::Runner.fetch_env_yaml(@name)
-      return nil unless yaml_data
+    def find_matching_secret_keys(pattern)
+      matching_keys = []
 
-      # Build the data structure expected by the system
-      @data = build_search_data(yaml_data)
+      # Convert glob pattern to regex
+      regex_pattern = glob_to_regex(pattern)
 
-      # Load group data if present
-      load_group_from_data
-
-      # Cache the environment data
-      @cache_manager&.set_env_data(self, @data)
-
-      @data
-    end
-
-    def build_search_data(yaml_data)
-      search_data = {}
-
-      # Add configs section
-      search_data['configs'] = yaml_data['configs'] if yaml_data['configs']
-
-      # Add secrets section (keys only, not values)
-      if yaml_data['secrets'] && yaml_data['secrets']['keys']
-        search_data['secrets'] = { 'keys' => yaml_data['secrets']['keys'] }
+      # Check environment secret keys
+      secret_keys.each do |key|
+        matching_keys << { key: key, source_entity: self } if key.match?(regex_pattern)
       end
 
-      # Store group name for later group fetching
-      search_data['group'] = yaml_data['group'] if yaml_data['group']
+      # Check group secret keys
+      group_secret_keys.each do |key|
+        next unless key.match?(regex_pattern)
 
-      search_data
-    end
-
-    def load_group_from_data
-      return unless @data&.dig('group')
-
-      # Try cache first
-      cached_group_data = @cache_manager&.get_group_data(group_name, @application)
-      if cached_group_data
-        @group = Lotus::Group.new(cached_group_data)
-        merge_group_secrets_into_data(cached_group_data)
-        return
+        # For group secrets, we need the group entity as the source
+        entity = group_entity
+        matching_keys << { key: key, source_entity: entity || self }
       end
 
-      # Fetch group data from lotus
-      group_yaml_data = Lotus::Runner.fetch_group_yaml(@name, group_name)
-      return unless group_yaml_data
-
-      @group = Lotus::Group.new(group_yaml_data)
-      merge_group_secrets_into_data(group_yaml_data)
-
-      # Cache group data
-      @cache_manager&.set_group_data(group_name, @application, group_yaml_data)
+      matching_keys
     end
 
-    def merge_group_secrets_into_data(group_yaml_data)
-      return unless group_yaml_data['secrets'] && group_yaml_data['secrets']['keys']
+    def group_entity
+      # Try to get the group entity from the parent EntitySet
+      return nil unless @parent_entity.respond_to?(:groups)
 
-      @data['group_secrets'] = { 'keys' => group_yaml_data['secrets']['keys'] }
+      group_name = @data&.dig('group')
+      return nil unless group_name
+
+      @parent_entity.groups.find { |group| group.name == group_name }
     end
 
-    public
-
-    def group_name
-      @data&.dig('group')
+    def glob_to_regex(pattern)
+      # Convert shell glob pattern to regex
+      # * matches any characters
+      # ? matches any single character
+      escaped = Regexp.escape(pattern)
+      escaped.gsub!('\*', '.*')
+      escaped.gsub!('\?', '.')
+      /^#{escaped}$/i
     end
   end
 end

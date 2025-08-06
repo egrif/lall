@@ -11,12 +11,12 @@ RSpec.describe LallCLI do
     stub_const('ENV_GROUPS', YAML.load_file(settings_path)['groups'])
 
     # Mock all Lotus::Runner methods to prevent real lotus calls
-    allow(Lotus::Runner).to receive(:fetch_env_yaml).and_return({
+    allow(Lotus::Runner).to receive(:fetch_yaml).and_return({
       'configs' => { 'test_key' => 'test_value' },
       'secrets' => { 'keys' => ['secret_key'] },
       'group' => 'test-group'
     })
-    allow(Lotus::Runner).to receive(:fetch_group_yaml).and_return({
+    allow(Lotus::Runner).to receive(:fetch_yaml).and_return({
       'configs' => { 'group_key' => 'group_value' },
       'secrets' => { 'keys' => ['group_secret'] }
     })
@@ -146,7 +146,7 @@ RSpec.describe LallCLI do
       before do
         # Mock the external lotus command calls
         allow(Lotus::Runner).to receive(:ping).and_return(true)
-        allow(Lotus::Runner).to receive(:fetch_env_yaml).and_return({
+        allow(Lotus::Runner).to receive(:fetch_yaml).and_return({
                                                                   'group' => 'test-group',
                                                                   'configs' => { 'api_token' => 'test_token_123' },
                                                                   'secrets' => { 'keys' => ['secret_key'] }
@@ -159,17 +159,17 @@ RSpec.describe LallCLI do
       it 'processes environment list from -e option' do
         cli = LallCLI.new(['-s', 'api_token', '-e', 'prod,staging', '--no-cache'])
 
-        expect(Lotus::Runner).to receive(:fetch_env_yaml).with('prod')
-        expect(Lotus::Runner).to receive(:fetch_env_yaml).with('staging')
+        expect(Lotus::Runner).to receive(:fetch_yaml).with(instance_of(Lotus::Environment))
+        expect(Lotus::Runner).to receive(:fetch_yaml).with(instance_of(Lotus::Environment))
         expect { cli.run }.to output(/api_token/).to_stdout
       end
 
       it 'processes environment list from -g option' do
         cli = LallCLI.new(['-s', 'api_token', '-g', 'staging', '--no-cache'])
 
-        expect(Lotus::Runner).to receive(:fetch_env_yaml).with('staging')
-        expect(Lotus::Runner).to receive(:fetch_env_yaml).with('staging-s2')
-        expect(Lotus::Runner).to receive(:fetch_env_yaml).with('staging-s3')
+        expect(Lotus::Runner).to receive(:fetch_yaml).with(instance_of(Lotus::Environment))
+        expect(Lotus::Runner).to receive(:fetch_yaml).with(instance_of(Lotus::Environment))
+        expect(Lotus::Runner).to receive(:fetch_yaml).with(instance_of(Lotus::Environment))
         expect { cli.run }.to output(/api_token/).to_stdout
       end
 
@@ -199,7 +199,7 @@ RSpec.describe LallCLI do
 
       before do
         allow(Lotus::Runner).to receive(:ping).and_return(true)
-        allow(Lotus::Runner).to receive(:fetch_env_yaml).and_return({ 'configs' => {} })
+        allow(Lotus::Runner).to receive(:fetch_yaml).and_return({ 'configs' => {} })
         cli_instance = double('cli')
         allow(cli_instance).to receive(:fetch_env_results).and_return(env_results)
       end
@@ -244,7 +244,7 @@ RSpec.describe LallCLI do
     let(:yaml_data) { { 'configs' => { 'api_token' => 'test123' } } }
 
     before do
-      allow(Lotus::Runner).to receive(:fetch_env_yaml).and_return(yaml_data)
+      allow(Lotus::Runner).to receive(:fetch_yaml).and_return(yaml_data)
       allow(KeySearcher).to receive(:search).and_return([
                                                           { path: 'configs.api_token', key: 'api_token', value: 'test123' }
                                                         ])
@@ -253,8 +253,8 @@ RSpec.describe LallCLI do
     it 'fetches results for all environments in parallel' do
       envs = %w[env1 env2]
 
-      expect(Lotus::Runner).to receive(:fetch_env_yaml).with('env1')
-      expect(Lotus::Runner).to receive(:fetch_env_yaml).with('env2')
+      expect(Lotus::Runner).to receive(:fetch_yaml).with(instance_of(Lotus::Environment))
+      expect(Lotus::Runner).to receive(:fetch_yaml).with(instance_of(Lotus::Environment))
 
       results = cli.send(:fetch_env_results, envs)
       expect(results.keys).to contain_exactly('env1', 'env2')

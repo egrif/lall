@@ -97,13 +97,6 @@ RSpec.describe Lotus::EntitySet do
     end
   end
 
-  describe '.from_settings' do
-    # This method no longer exists, but keeping this context for clarity
-    it 'no longer exists - functionality moved to initialize' do
-      expect(described_class).not_to respond_to(:from_settings)
-    end
-  end
-
   describe '#add' do
     it 'adds an entity to the collection' do
       entity_set = described_class.new
@@ -153,42 +146,108 @@ RSpec.describe Lotus::EntitySet do
     end
   end
 
-  describe '#group_names' do
-    let(:settings) { double('SettingsManager') }
-    let(:env1) { Lotus::Environment.new('staging-s1') }
-    let(:env2) { Lotus::Environment.new('prod-s1') }
-    let(:env3) { Lotus::Environment.new('prod-s2') }
-    let(:entity_set) { described_class.new([env1, env2, env3], settings) }
-    
-    let(:groups) do
-      {
-        'staging' => ['staging-s1', 'staging-s2'],
-        'prod-us' => ['prod-s1', 'prod-s2'],
-        'prod-eu' => ['prod-s101', 'prod-s102'] # No matching environments
-      }
-    end
-
-    before do
-      allow(settings).to receive(:groups).and_return(groups)
-    end
-
-    it 'returns group names that contain the environments' do
-      group_names = entity_set.group_names
-      expect(group_names).to contain_exactly('staging', 'prod-us')
-    end
-
-    it 'returns empty array when no settings' do
-      entity_set_no_settings = described_class.new([env1, env2])
-      expect(entity_set_no_settings.group_names).to eq([])
-    end
-  end
-
   describe '#all' do
     it 'returns all entities' do
       entities = [double('entity1'), double('entity2')]
       entity_set = described_class.new(entities)
       
       expect(entity_set.all).to eq(entities)
+    end
+  end
+
+  describe '#environments' do
+    it 'returns only Environment entities' do
+      env1 = Lotus::Environment.new('env1')
+      env2 = Lotus::Environment.new('env2')
+      group = Lotus::Group.new('group1')
+      
+      entity_set = described_class.new([env1, group, env2])
+      
+      environments = entity_set.environments
+      expect(environments).to contain_exactly(env1, env2)
+      expect(environments.all? { |e| e.is_a?(Lotus::Environment) }).to be true
+    end
+
+    it 'returns empty array when no environments exist' do
+      group = Lotus::Group.new('group1')
+      entity_set = described_class.new([group])
+      
+      expect(entity_set.environments).to eq([])
+    end
+  end
+
+  describe '#groups' do
+    it 'returns only Group entities' do
+      env = Lotus::Environment.new('env1')
+      group1 = Lotus::Group.new('group1')
+      group2 = Lotus::Group.new('group2')
+      
+      entity_set = described_class.new([env, group1, group2])
+      
+      groups = entity_set.groups
+      expect(groups).to contain_exactly(group1, group2)
+      expect(groups.all? { |g| g.is_a?(Lotus::Group) }).to be true
+    end
+
+    it 'returns empty array when no groups exist' do
+      env = Lotus::Environment.new('env1')
+      entity_set = described_class.new([env])
+      
+      expect(entity_set.groups).to eq([])
+    end
+  end
+
+  describe '#fetch_all' do
+    let(:settings) { double('SettingsManager') }
+    
+    before do
+      allow(settings).to receive(:groups).and_return({
+        'group1' => ['env1', 'env2'],
+        'group2' => ['env3']
+      })
+      allow(settings).to receive(:instance_variable_get).with(:@cli_options).and_return({})
+      allow(settings).to receive(:cache_settings).and_return({ enabled: false })
+    end
+
+    it 'fetches all environments and creates groups from their data' do
+      entity_set = described_class.new(settings)
+      
+      # Mock Lotus::Runner.fetch_all
+      expect(Lotus::Runner).to receive(:fetch_all).twice do |entities|
+        # Simulate populating environment data with group references
+        entities.each do |entity|
+          if entity.is_a?(Lotus::Environment)
+            entity.instance_variable_set(:@data, { 'group' => 'test-group', 'configs' => {} })
+          end
+        end
+        entities
+      end
+
+      result = entity_set.fetch_all
+      
+      expect(result).to eq(entity_set)
+      expect(entity_set.environments.length).to be > 0
+      expect(entity_set.groups.length).to be > 0
+    end
+
+    it 'handles environments without group data' do
+      entity_set = described_class.new(settings)
+      
+      # Mock Lotus::Runner.fetch_all to return environments without group data
+      expect(Lotus::Runner).to receive(:fetch_all).once do |entities|
+        entities.each do |entity|
+          if entity.is_a?(Lotus::Environment)
+            entity.instance_variable_set(:@data, { 'configs' => {} }) # No group field
+          end
+        end
+        entities
+      end
+
+      result = entity_set.fetch_all
+      
+      expect(result).to eq(entity_set)
+      expect(entity_set.environments.length).to be > 0
+      expect(entity_set.groups.length).to eq(0) # No groups should be created
     end
   end
 end

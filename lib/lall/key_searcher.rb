@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 # lib/lall/key_searcher.rb
+require 'lotus/entity'
 require 'lotus/environment'
 require 'lotus/group'
 require 'lotus/runner'

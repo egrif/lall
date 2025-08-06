@@ -4,6 +4,7 @@
 require 'optparse'
 require 'yaml'
 require 'lotus/runner'
+require 'lotus/entity'
 require 'lotus/environment'
 require 'lotus/group'
 require_relative 'key_searcher'
@@ -229,23 +230,6 @@ class LallCLI
       false
     end
 
-    # Environment-specific cache operations (null implementations)
-    def get_env_data(_environment)
-      nil
-    end
-
-    def set_env_data(_environment, _data) # rubocop:disable Naming/PredicateMethod
-      false
-    end
-
-    def get_group_data(_group_name, _application)
-      nil
-    end
-
-    def set_group_data(_group_name, _application, _data) # rubocop:disable Naming/PredicateMethod
-      false
-    end
-
     def clear_cache # rubocop:disable Naming/PredicateMethod
       false
     end
@@ -439,8 +423,9 @@ class LallCLI
   end
 
   def fetch_and_cache_env_data(env, env_cache_key)
-    # Fetch fresh environment data
-    yaml_data = Lotus::Runner.fetch_env_yaml(env)
+    # Fetch fresh environment data using the unified entity approach
+    env_entity = Lotus::Environment.new(env, application: @application)
+    yaml_data = Lotus::Runner.fetch_yaml(env_entity)
     return {} if yaml_data.nil?
 
     search_data = build_search_data(yaml_data)
@@ -483,8 +468,9 @@ class LallCLI
 
     puts "Cache miss for group: #{group_name}" if @options[:debug]
 
-    # Fetch fresh group data
-    group_yaml_data = Lotus::Runner.fetch_group_yaml(env, group_name)
+    # Fetch fresh group data using the unified entity approach
+    group_entity = Lotus::Group.new(group_name, application: @application, space: 'prod')
+    group_yaml_data = Lotus::Runner.fetch_yaml(group_entity)
     return {} if group_yaml_data.nil?
 
     # Cache the group data with encryption if it contains secrets

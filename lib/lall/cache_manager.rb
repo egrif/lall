@@ -121,35 +121,40 @@ module Lall
       true
     end
 
-    # Environment-specific cache operations
-    def get_env_data(environment)
+    # Generic entity cache operations using cache_key
+    def get_entity_data(entity)
       return nil unless @enabled
 
-      env_key = build_env_cache_key(environment)
-      get(env_key)
+      get(entity.cache_key)
     end
 
-    def set_env_data(environment, data)
+    def set_entity_data(entity, data, is_secret: false)
       return false unless @enabled
 
-      env_key = build_env_cache_key(environment)
-      has_secrets = data.key?('secrets') || data.key?('group_secrets')
-      set(env_key, data, is_secret: has_secrets)
+      set(entity.cache_key, data, is_secret: is_secret)
     end
 
-    def get_group_data(group_name, application)
-      return nil unless @enabled
-
-      group_key = build_group_cache_key(group_name, application)
-      get(group_key)
-    end
-
-    def set_group_data(group_name, application, data)
+    # Purge all cache entries related to a specific entity (Environment or Group)
+    def purge_entity(entity) # rubocop:disable Naming/PredicateMethod
       return false unless @enabled
 
-      group_key = build_group_cache_key(group_name, application)
-      has_secrets = data['secrets'] && !data['secrets']['keys'].empty?
-      set(group_key, data, is_secret: has_secrets)
+      # Check if entity supports cache_key method
+      unless entity.respond_to?(:cache_key)
+        raise ArgumentError, "Unsupported entity type: #{entity.class}. Expected Lotus::Environment or Lotus::Group"
+      end
+
+      # Use unified cache key approach
+      delete(entity.cache_key)
+
+      # For environments and groups, also purge any associated secrets
+      case entity
+      when Lotus::Environment
+        purge_environment_secret_entries(entity)
+      when Lotus::Group
+        purge_group_secret_entries(entity)
+      end
+
+      true
     end
 
     def clear_cache # rubocop:disable Naming/PredicateMethod
@@ -176,6 +181,55 @@ module Lall
     end
 
     private
+
+    # Purge secret cache entries for a specific environment using pattern matching
+    def purge_environment_secret_entries(environment)
+      purge_entity_secret_keys('ENV-SECRET', environment.name, environment.space, environment.region)
+    end
+
+    # Purge secret cache entries for a specific group using pattern matching
+    def purge_group_secret_entries(group)
+      purge_entity_secret_keys('GROUP-SECRET', group.name, group.space, group.region)
+    end
+
+    # Purge secret cache keys for an entity (environment or group)
+    def purge_entity_secret_keys(secret_type, entity_name, space, region)
+      # Build pattern to match secret keys for this entity
+      # Secret keys follow format: PREFIX.SECRET-TYPE.ENTITY.SPACE.REGION.SECRET_KEY
+      pattern_prefix = cache_key("#{secret_type}.#{entity_name}.#{space}.#{region}")
+
+      case @backend_type
+      when :redis
+        # Use Redis pattern matching to find and delete keys
+        redis_pattern = "#{pattern_prefix}.*"
+        keys = @cache_store.instance_variable_get(:@redis).keys(redis_pattern)
+        @cache_store.instance_variable_get(:@redis).del(keys) unless keys.empty?
+      when :moneta
+        # For Moneta, iterate through cache directory and match patterns
+        purge_moneta_pattern_keys(pattern_prefix)
+      end
+    end
+
+    # Purge Moneta keys that match a specific pattern prefix
+    def purge_moneta_pattern_keys(pattern_prefix)
+      return unless File.directory?(@cache_dir)
+
+      Dir.glob(File.join(@cache_dir, '*')).each do |file_path|
+        next unless File.file?(file_path)
+
+        begin
+          # Get the key from the filename (URL decode it)
+          filename = File.basename(file_path)
+          key = CGI.unescape(filename)
+
+          # Check if this key matches our pattern
+          @cache_store.delete(key) if key.start_with?(pattern_prefix)
+        rescue StandardError
+          # If we can't process the file, skip it
+          next
+        end
+      end
+    end
 
     def cache_config
       @cache_config ||= if defined?(SETTINGS) && SETTINGS['cache']
@@ -261,14 +315,6 @@ module Lall
     def cache_key(key)
       # Use human-readable cache keys with prefix (no hashing)
       "#{@cache_prefix}.#{key}"
-    end
-
-    def build_env_cache_key(environment)
-      "env:#{environment.name}:#{environment.application}"
-    end
-
-    def build_group_cache_key(group_name, application)
-      "group:#{group_name}:#{application}"
     end
 
     def clear_prefixed_keys

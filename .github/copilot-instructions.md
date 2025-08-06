@@ -109,6 +109,26 @@ bundle exec rake test
 - Use `SpecHelpers.sample_yaml_data` for consistent test fixtures
 - Integration tests use `xit` for pending (not `skip` or `pending`)
 
+#### Testing Commands
+
+**RSpec Flags - IMPORTANT REMINDERS:**
+- `-v` = version (NOT verbose!)
+- `--format documentation` or `-f documentation` or `-f d` = verbose test output
+- `-f progress` = progress dots (default)
+- Never use `-v` when you want verbose output
+
+**Common RSpec patterns:**
+```bash
+# Verbose output for specific tests
+bundle exec rspec spec/some_spec.rb --format documentation
+
+# Progress format (default)
+bundle exec rspec spec/ -f progress
+
+# Run specific test by line number
+bundle exec rspec spec/some_spec.rb:123
+```
+
 ### CI Tests
 ```bash
 # spelling tests

@@ -15,24 +15,27 @@ RSpec.describe Lotus::Environment do
     it 'stores the name and optional parameters' do
       env = Lotus::Environment.new('prod-s5', space: 'custom-space', region: 'use1', application: 'test-app')
       expect(env.name).to eq('prod-s5')
+      expect(env.space).to eq('custom-space')
+      expect(env.region).to eq('use1')
+      expect(env.application).to eq('test-app')
     end
 
     it 'works with just a name parameter' do
       env = Lotus::Environment.new('staging')
       expect(env.name).to eq('staging')
+      expect(env.application).to eq('greenhouse') # default
     end
 
-    it 'accepts a cache_manager parameter' do
-      cache_manager = double('CacheManager')
-      env = Lotus::Environment.new('prod', cache_manager: cache_manager)
+    it 'accepts a parent parameter' do
+      parent = double('EntitySet')
+      env = Lotus::Environment.new('prod', parent: parent)
       expect(env.name).to eq('prod')
-      expect(env.instance_variable_get(:@cache_manager)).to eq(cache_manager)
+      expect(env.entity_set).to eq(parent)
     end
 
-    it 'initializes data and group as nil' do
+    it 'initializes data as nil' do
       env = Lotus::Environment.new('prod')
       expect(env.data).to be_nil
-      expect(env.group).to be_nil
     end
   end
 
@@ -126,9 +129,9 @@ RSpec.describe Lotus::Environment do
   # in the current implementation. These would need data loading functionality.
   describe 'data-dependent methods' do
     describe '#group_name' do
-      it 'returns nil when @data is nil' do
+      it 'raises NoMethodError when @data is nil' do
         env = Lotus::Environment.new('prod')
-        expect(env.group_name).to be_nil
+        expect { env.group_name }.to raise_error(NoMethodError, /requires data to be loaded first/)
       end
 
       it 'returns group name when data is loaded' do
@@ -175,201 +178,167 @@ RSpec.describe Lotus::Environment do
   end
 
   describe '#fetch' do
-    let(:cache_manager) { double('CacheManager') }
-    let(:env_with_cache) { Lotus::Environment.new('prod', cache_manager: cache_manager) }
-    let(:env_without_cache) { 
-      require_relative '../../lib/lall/cli'
-      Lotus::Environment.new('prod', cache_manager: LallCLI::NullCacheManager.new) 
-    }
+    let(:env) { Lotus::Environment.new('prod') }
     
-    let(:sample_env_yaml) do
+    let(:sample_env_data) do
       {
         'configs' => { 'api_url' => 'https://api.prod.com' },
         'secrets' => { 'keys' => ['api_key', 'db_password'] },
         'group' => 'prod-group'
       }
     end
-    
-    let(:sample_group_yaml) do
+
+    it 'delegates to Lotus::Runner.fetch' do
+      expect(Lotus::Runner).to receive(:fetch).with(env).and_return(sample_env_data)
+      
+      result = env.fetch
+      expect(result).to eq(sample_env_data)
+    end
+
+    it 'returns cached data if already loaded' do
+      env.instance_variable_set(:@data, sample_env_data)
+      
+      expect(Lotus::Runner).not_to receive(:fetch)
+      result = env.fetch
+      
+      expect(result).to eq(sample_env_data)
+    end
+  end
+
+  describe '#lotus_cmd' do
+    it 'constructs correct lotus command' do
+      env = Lotus::Environment.new('prod-s5')
+      expected_cmd = 'lotus view -s prod -r use1 -e prod-s5 -a greenhouse -G'
+      expect(env.lotus_cmd).to eq(expected_cmd)
+    end
+
+    it 'handles environment without region' do
+      env = Lotus::Environment.new('development')
+      expected_cmd = 'lotus view -s dev -r use1 -e development -a greenhouse -G'
+      expect(env.lotus_cmd).to eq(expected_cmd)
+    end
+  end
+
+  describe '#lotus_parse' do
+    let(:env) { Lotus::Environment.new('prod') }
+    let(:raw_data) do
       {
-        'configs' => { 'shared_config' => 'shared_value' },
-        'secrets' => { 'keys' => ['shared_secret'] }
+        'configs' => { 'api_url' => 'https://api.prod.com' },
+        'secrets' => { 'keys' => ['api_key'] },
+        'group' => 'prod-group'
       }
     end
 
-    context 'when data is already loaded' do
-      it 'returns cached data without making lotus calls' do
-        env = Lotus::Environment.new('prod')
-        env.instance_variable_set(:@data, { 'configs' => { 'test' => 'value' } })
-        
-        expect(Lotus::Runner).not_to receive(:fetch_env_yaml)
-        result = env.fetch
-        
-        expect(result).to eq({ 'configs' => { 'test' => 'value' } })
-      end
+    it 'returns the raw data as-is' do
+      result = env.lotus_parse(raw_data)
+      expect(result).to eq(raw_data)
+    end
+  end
+
+  describe '#fetch_secrets' do
+    let(:env) { Lotus::Environment.new('prod') }
+    
+    before do
+      # Set up environment with sample data including secret keys
+      env.instance_variable_set(:@data, {
+        'secrets' => { 'keys' => ['DB_PASSWORD', 'API_KEY', 'SOLR_URL', 'REDIS_PASSWORD'] },
+        'group_secrets' => { 'keys' => ['SHARED_SECRET', 'SOLR_HOST'] },
+        'group' => 'prod-group'
+      })
     end
 
-    context 'with cache manager' do
-      it 'returns data from cache when available' do
-        cached_data = {
-          'configs' => { 'api_url' => 'https://api.prod.com' },
-          'secrets' => { 'keys' => ['api_key'] }
-        }
-        
-        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(cached_data)
-        expect(Lotus::Runner).not_to receive(:fetch_env_yaml)
-        
-        result = env_with_cache.fetch
-        expect(result).to eq(cached_data)
-        expect(env_with_cache.data).to eq(cached_data)
-      end
-
-      it 'fetches from lotus when cache misses and caches the result' do
-        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(nil)
-        expect(cache_manager).to receive(:get_group_data).with('prod-group', 'greenhouse').and_return(nil)
-        expect(Lotus::Runner).to receive(:fetch_env_yaml).with('prod').and_return(sample_env_yaml)
-        expect(Lotus::Runner).to receive(:fetch_group_yaml).with('prod', 'prod-group').and_return(sample_group_yaml)
-        expect(cache_manager).to receive(:set_env_data).with(env_with_cache, anything)
-        expect(cache_manager).to receive(:set_group_data).with('prod-group', 'greenhouse', sample_group_yaml)
-        
-        result = env_with_cache.fetch
-        
-        expect(result['configs']).to eq(sample_env_yaml['configs'])
-        expect(result['secrets']).to eq({ 'keys' => sample_env_yaml['secrets']['keys'] })
-        expect(result['group']).to eq('prod-group')
-      end
-
-      it 'loads group data when environment has a group' do
-        cached_data = {
-          'configs' => { 'api_url' => 'https://api.prod.com' },
-          'group' => 'prod-group'
-        }
-        
-        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(cached_data)
-        expect(cache_manager).to receive(:get_group_data).with('prod-group', 'greenhouse').and_return(nil)
-        expect(Lotus::Runner).to receive(:fetch_group_yaml).with('prod', 'prod-group').and_return(sample_group_yaml)
-        expect(cache_manager).to receive(:set_group_data).with('prod-group', 'greenhouse', sample_group_yaml)
-        
-        env_with_cache.fetch
-        
-        expect(env_with_cache.group).to be_a(Lotus::Group)
-        expect(env_with_cache.data['group_secrets']).to eq({ 'keys' => ['shared_secret'] })
-      end
-
-      it 'uses cached group data when available' do
-        env_data = {
-          'configs' => { 'api_url' => 'https://api.prod.com' },
-          'group' => 'prod-group'
-        }
-        
-        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(env_data)
-        expect(cache_manager).to receive(:get_group_data).with('prod-group', 'greenhouse').and_return(sample_group_yaml)
-        expect(Lotus::Runner).not_to receive(:fetch_group_yaml)
-        
-        env_with_cache.fetch
-        
-        expect(env_with_cache.group).to be_a(Lotus::Group)
-        expect(env_with_cache.data['group_secrets']).to eq({ 'keys' => ['shared_secret'] })
-      end
-
-      it 'handles environments without groups' do
-        env_data_no_group = {
-          'configs' => { 'api_url' => 'https://api.prod.com' },
-          'secrets' => { 'keys' => ['api_key'] }
-        }
-        
-        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(env_data_no_group)
-        
-        result = env_with_cache.fetch
-        
-        expect(result).to eq(env_data_no_group)
-        expect(env_with_cache.group).to be_nil
-      end
-
-      it 'caches with is_secret: true when secrets are present' do
-        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(nil)
-        expect(cache_manager).to receive(:get_group_data).with('prod-group', 'greenhouse').and_return(nil)
-        expect(Lotus::Runner).to receive(:fetch_env_yaml).with('prod').and_return(sample_env_yaml)
-        expect(Lotus::Runner).to receive(:fetch_group_yaml).with('prod', 'prod-group').and_return(sample_group_yaml)
-        expect(cache_manager).to receive(:set_env_data).with(env_with_cache, anything)
-        expect(cache_manager).to receive(:set_group_data).with('prod-group', 'greenhouse', sample_group_yaml)
-        
-        env_with_cache.fetch
-      end
-
-      it 'caches with is_secret: false when no secrets are present' do
-        env_yaml_no_secrets = {
-          'configs' => { 'api_url' => 'https://api.prod.com' }
-        }
-        
-        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(nil)
-        expect(Lotus::Runner).to receive(:fetch_env_yaml).with('prod').and_return(env_yaml_no_secrets)
-        expect(cache_manager).to receive(:set_env_data).with(env_with_cache, anything)
-        
-        env_with_cache.fetch
-      end
+    it 'raises error when data is not loaded' do
+      empty_env = Lotus::Environment.new('test')
+      expect { empty_env.fetch_secrets('*') }.to raise_error(NoMethodError, /requires data to be loaded first/)
     end
 
-    context 'without cache manager' do
-      it 'fetches from lotus directly and does not cache' do
-        expect(Lotus::Runner).to receive(:fetch_env_yaml).with('prod').and_return(sample_env_yaml)
-        
-        result = env_without_cache.fetch
-        
-        expect(result['configs']).to eq(sample_env_yaml['configs'])
-        expect(result['secrets']).to eq({ 'keys' => sample_env_yaml['secrets']['keys'] })
+    it 'finds and fetches matching environment secrets' do
+      # Mock Lotus::Runner.fetch_all
+      expect(Lotus::Runner).to receive(:fetch_all) do |secret_entities|
+        # Should find both SOLR_URL (environment) and SOLR_HOST (group)
+        expect(secret_entities.length).to eq(2)
+        names = secret_entities.map(&:name)
+        expect(names).to contain_exactly('SOLR_URL', 'SOLR_HOST')
+        secret_entities
       end
 
-      it 'loads group data without caching' do
-        expect(Lotus::Runner).to receive(:fetch_env_yaml).with('prod').and_return(sample_env_yaml)
-        expect(Lotus::Runner).to receive(:fetch_group_yaml).with('prod', 'prod-group').and_return(sample_group_yaml)
-        
-        env_without_cache.fetch
-        
-        expect(env_without_cache.group).to be_a(Lotus::Group)
-        expect(env_without_cache.data['group_secrets']).to eq({ 'keys' => ['shared_secret'] })
-      end
+      secrets = env.fetch_secrets('*SOLR*')
+      
+      expect(secrets.length).to eq(2)
+      expect(secrets.all? { |s| s.is_a?(Lotus::Secret) }).to be true
+      expect(env.secrets).to eq(secrets)
     end
 
-    context 'error handling' do
-      it 'returns nil when lotus fetch fails' do
-        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(nil)
-        expect(Lotus::Runner).to receive(:fetch_env_yaml).with('prod').and_return(nil)
-        
-        result = env_with_cache.fetch
-        expect(result).to be_nil
+    it 'finds secrets with environment-only pattern' do
+      # Mock Lotus::Runner.fetch_all
+      expect(Lotus::Runner).to receive(:fetch_all) do |secret_entities|
+        expect(secret_entities.length).to eq(1)
+        expect(secret_entities.first.name).to eq('API_KEY')
+        secret_entities
       end
 
-      it 'handles group fetch failures gracefully' do
-        env_data = {
-          'configs' => { 'api_url' => 'https://api.prod.com' },
-          'group' => 'prod-group'
-        }
-        
-        expect(cache_manager).to receive(:get_env_data).with(env_with_cache).and_return(env_data)
-        expect(cache_manager).to receive(:get_group_data).with('prod-group', 'greenhouse').and_return(nil)
-        expect(Lotus::Runner).to receive(:fetch_group_yaml).with('prod', 'prod-group').and_return(nil)
-        
-        result = env_with_cache.fetch
-        
-        expect(result).to eq(env_data)
-        expect(env_with_cache.group).to be_nil
-      end
+      secrets = env.fetch_secrets('API_*')
+      
+      expect(secrets.length).to eq(1)
+      expect(secrets.first.name).to eq('API_KEY')
     end
 
-    context 'custom application name' do
-      it 'uses custom application in cache keys' do
-        custom_env = Lotus::Environment.new('prod', application: 'custom-app', cache_manager: cache_manager)
-        
-        expect(cache_manager).to receive(:get_env_data).with(custom_env).and_return(nil)
-        expect(Lotus::Runner).to receive(:fetch_env_yaml).with('prod').and_return(sample_env_yaml)
-        expect(cache_manager).to receive(:set_env_data).with(custom_env, anything)
-        expect(cache_manager).to receive(:get_group_data).with('prod-group', 'custom-app').and_return(nil)
-        expect(Lotus::Runner).to receive(:fetch_group_yaml).with('prod', 'prod-group').and_return(sample_group_yaml)
-        expect(cache_manager).to receive(:set_group_data).with('prod-group', 'custom-app', sample_group_yaml)
-        
-        custom_env.fetch
+    it 'finds secrets with group-only pattern' do
+      # Mock Lotus::Runner.fetch_all
+      expect(Lotus::Runner).to receive(:fetch_all) do |secret_entities|
+        expect(secret_entities.length).to eq(1)
+        expect(secret_entities.first.name).to eq('SHARED_SECRET')
+        secret_entities
       end
+
+      secrets = env.fetch_secrets('SHARED_*')
+      
+      expect(secrets.length).to eq(1)
+      expect(secrets.first.name).to eq('SHARED_SECRET')
+    end
+
+    it 'finds secrets from both environment and group sources' do
+      # Mock Lotus::Runner.fetch_all
+      expect(Lotus::Runner).to receive(:fetch_all) do |secret_entities|
+        expect(secret_entities.length).to eq(2)
+        names = secret_entities.map(&:name)
+        expect(names).to contain_exactly('SOLR_URL', 'SOLR_HOST')
+        secret_entities
+      end
+
+      secrets = env.fetch_secrets('*SOLR*')
+      expect(secrets.length).to eq(2)
+    end
+
+    it 'returns empty array when no secrets match pattern' do
+      secrets = env.fetch_secrets('*NONEXISTENT*')
+      expect(secrets).to eq([])
+      expect(env.secrets).to eq([])
+    end
+
+    it 'supports different glob patterns' do
+      # Test *_PASSWORD pattern
+      expect(Lotus::Runner).to receive(:fetch_all) do |secret_entities|
+        names = secret_entities.map(&:name)
+        expect(names).to contain_exactly('DB_PASSWORD', 'REDIS_PASSWORD')
+        secret_entities
+      end
+
+      secrets = env.fetch_secrets('*_PASSWORD')
+      expect(secrets.length).to eq(2)
+    end
+
+    it 'is case insensitive' do
+      expect(Lotus::Runner).to receive(:fetch_all) do |secret_entities|
+        # Should find both SOLR_URL and SOLR_HOST (case insensitive)
+        expect(secret_entities.length).to eq(2)
+        names = secret_entities.map(&:name)
+        expect(names).to contain_exactly('SOLR_URL', 'SOLR_HOST')
+        secret_entities
+      end
+
+      secrets = env.fetch_secrets('*solr*')
+      expect(secrets.length).to eq(2)
     end
   end
 end

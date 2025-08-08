@@ -216,7 +216,11 @@ class KeySearcher
 
   def self.fetch_and_update_secret(job, group_name, mutex, results, cache_manager)
     group = job[:path].include?('group_secrets') ? group_name : nil
-    s_arg, r_arg = Lotus::Runner.get_lotus_args(job[:env])
+
+    # Create a temporary environment entity to get space and region
+    env_entity = Lotus::Environment.new(job[:env])
+    s_arg = env_entity.space
+    r_arg = env_entity.region
 
     secret_val = try_cache_lookup(cache_manager, job, group, s_arg, r_arg)
     secret_val = fetch_and_cache_secret(cache_manager, job, group, s_arg, r_arg) if secret_val.nil?
@@ -249,7 +253,19 @@ class KeySearcher
   end
 
   def self.fetch_env_secret(cache_manager, job, s_arg, r_arg)
-    env_secret = Lotus::Runner.secret_get(job[:env], job[:key])
+    # Create an Environment entity and then a Secret entity for this key
+    env_entity = Lotus::Environment.new(job[:env])
+
+    require_relative '../lotus/secret'
+    secret_entity = Lotus::Secret.new(
+      job[:key],
+      space: env_entity.space,
+      region: env_entity.region,
+      application: env_entity.application,
+      parent: env_entity
+    )
+
+    env_secret = secret_entity.fetch
     return nil unless env_secret
 
     secret_val = parse_secret_value(env_secret)
@@ -258,7 +274,19 @@ class KeySearcher
   end
 
   def self.fetch_group_secret(cache_manager, job, group, s_arg, r_arg)
-    group_secret = Lotus::Runner.secret_get(job[:env], job[:key], group: group)
+    # Create a Group entity and then a Secret entity for this key
+    group_entity = Lotus::Group.new(group)
+
+    require_relative '../lotus/secret'
+    secret_entity = Lotus::Secret.new(
+      job[:key],
+      space: group_entity.space,
+      region: group_entity.region,
+      application: group_entity.application,
+      parent: group_entity
+    )
+
+    group_secret = secret_entity.fetch
     return nil unless group_secret
 
     secret_val = parse_secret_value(group_secret)

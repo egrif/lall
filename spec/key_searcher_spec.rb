@@ -148,11 +148,12 @@ RSpec.describe KeySearcher do
 
     context 'with expose option' do
       before do
-        # Use a more robust mock that works across thread boundaries
+        # Use a more robust mock that works across thread boundaries for entity-based fetching
         stub_const('MOCKED_SECRET_VALUE', 'SECRET_KEY=actual_secret_value')
-        allow(Lotus::Runner).to receive(:secret_get) do |_env, _key, group: nil|
-          MOCKED_SECRET_VALUE
-        end
+        
+        # Require the Secret class and mock its fetch method
+        require_relative '../lib/lotus/secret'
+        allow_any_instance_of(Lotus::Secret).to receive(:fetch).and_return('actual_secret_value')
       end
 
       it 'fetches actual secret values when expose is true' do

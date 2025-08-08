@@ -4,18 +4,38 @@ require_relative 'environment'
 require_relative 'group'
 
 module Lotus
+  # EntitySet manages collections of Lotus entities (Environments and Groups)
+  # Provides parallel fetching, instantiation, and relationship management
+  # rubocop:disable Metrics/ClassLength
   class EntitySet
     attr_reader :entities, :settings
 
-    def initialize(entities_or_settings = [], settings = nil)
-      # If first parameter is a SettingsManager, create entities from it
-      if entities_or_settings.respond_to?(:groups)
-        @settings = entities_or_settings
-        @entities = create_environments_from_settings(@settings)
+    def initialize(entities_or_settings = nil, settings = nil)
+      # Handle different calling patterns:
+      # new() - empty initialization
+      # new(settings) - settings only
+      # new(entities, settings) - entities and settings
+
+      if entities_or_settings.nil?
+        # new() - empty initialization
+        @entities = []
+        @settings = nil
+      elsif settings.nil?
+        # new(settings) - first parameter is settings
+        if entities_or_settings.respond_to?(:groups)
+          @entities = []
+          @settings = entities_or_settings
+          @entities += instantiate_all_environments
+        else
+          # new(entities) - first parameter is entities array
+          @entities = entities_or_settings
+          @settings = nil
+        end
       else
-        # Traditional initialization with entities array
+        # new(entities, settings) - both parameters provided
         @entities = entities_or_settings
         @settings = settings
+        @entities += instantiate_all_environments if settings
       end
     end
 
@@ -31,14 +51,6 @@ module Lotus
       entity.instance_variable_set(:@parent_entity, nil)
     end
 
-    def find_by_id(id)
-      @entities.find { |entity| entity.id == id }
-    end
-
-    def find_by_name(name)
-      @entities.find { |entity| entity.name == name }
-    end
-
     def all
       @entities
     end
@@ -46,7 +58,8 @@ module Lotus
     def fetch_all
       # First, instantiate and fetch all environments in parallel
       require_relative 'runner'
-      environments = instantiate_all_environments
+      environments = @entities.select { |e| e.is_a?(Lotus::Environment) }
+      environments = instantiate_all_environments if environments.empty?
       Lotus::Runner.fetch_all(environments)
 
       # Then, get group names from the fetched environments and instantiate groups
@@ -76,33 +89,51 @@ module Lotus
       Lotus::Runner.fetch_all(@entities)
 
       # Then, create and fetch all groups that these environments belong to
-      groups = create_groups_from_environment_memberships
+      environments = @entities.select { |e| e.is_a?(Lotus::Environment) }
+      groups = instantiate_groups_from_environments(environments)
       Lotus::Runner.fetch_all(groups) unless groups.empty?
 
       # Return self for method chaining
       self
     end
 
-    # Get all unique group names that environments belong to
-    def group_names
-      return [] unless @settings
-
-      # Find which groups contain our environments
-      environment_names = @entities.map(&:name)
-      group_names = []
-
-      @settings.groups.each do |group_name, group_environments|
-        # Check if any of our environments are in this group
-        group_names << group_name if group_environments.any? { |env_name| environment_names.include?(env_name) }
+    # make sure values are known for all secrets that match the glob
+    def fetch_secrets(pattern = '*')
+      @entities.each do |entity|
+        entity.fetch_secrets(pattern)
       end
+    end
 
-      group_names.uniq
+    def find_entity(type, name, space, region, application)
+      # Find an entity by type, name, space, region, and application
+      @entities.find do |entity|
+        entity.lotus_type == type &&
+          entity.name == name &&
+          entity.space == space &&
+          entity.region == region &&
+          entity.application == application
+      end
+    end
+
+    def find_equivalent_entity(entity, collection = nil)
+      # Find an equivalent entity in the collection based on type, name, space, region, and application
+      collection ||= @entities
+      collection.find do |e|
+        e.lotus_type == entity_type &&
+          e.name == entity.name &&
+          e.space == entity.space &&
+          e.region == entity.region &&
+          e.application == entity.application
+      end
     end
 
     private
 
     def instantiate_all_environments
       return [] unless @settings
+
+      # Initialize cache manager based on settings
+      cache_manager = initialize_cache_manager
 
       environments = []
       target_environments = determine_target_environments(@settings)
@@ -112,83 +143,64 @@ module Lotus
           env_name,
           parent: self
         )
+        # Set cache manager on environment
+        environment.instance_variable_set(:@cache_manager, cache_manager)
         environments << environment
       end
 
       environments
     end
 
-    def instantiate_groups_from_environments(environments)
-      return [] unless @settings
+    def initialize_cache_manager
+      return nil unless @settings.respond_to?(:cache_settings)
 
-      # Get all unique group names from the fetched environments
-      group_names = []
+      cache_settings = @settings.cache_settings
+      if cache_settings[:enabled]
+        require_relative '../lall/cache_manager'
+        Lall::CacheManager.new(cache_settings)
+      else
+        require_relative '../lall/null_cache_manager'
+        Lall::NullCacheManager.new
+      end
+    rescue StandardError
+      # Fallback to null cache manager if initialization fails
+      require_relative '../lall/null_cache_manager'
+      Lall::NullCacheManager.new
+    end
+
+    def instantiate_groups_from_environments(environments)
+      # Get all unique group names from the fetched environments and derive their attributes
+      groups = []
       environments.each do |env|
         # Only process environments that have loaded data
         next unless env.data
 
-        group_name = env.data['group']
-        group_names << group_name if group_name && !group_names.include?(group_name)
-      end
+        group_name = env.group_name
+        next unless group_name
 
-      # Create Group instances
-      groups = []
-      group_names.each do |group_name|
-        group = Lotus::Group.new(
-          group_name,
-          application: 'greenhouse',
-          parent: self
-        )
-        groups << group
+        # Initialize group info if we haven't seen this group before
+        next if find_entity('group', group_name, env.space, env.region, env.application)
+
+        groups << create_group_from_environment(group_name, env)
       end
 
       groups
     end
 
-    def create_groups_from_environment_memberships
-      return [] unless @settings
-
-      groups = []
-      unique_group_names = group_names
-
-      unique_group_names.each do |group_name|
-        # Create Group instance - groups inherit space/region from environment logic
-        # For now, use default space/region (will be determined in Group's lotus_cmd)
-        group = Lotus::Group.new(
-          group_name,
-          application: 'greenhouse',
-          parent: self
-        )
-        groups << group
-      end
-
-      groups
-    end
-
-    def create_environments_from_settings(settings)
-      environments = []
-      cache_manager = initialize_cache_manager(settings)
-
-      # Get the specific environments that should be created
-      target_environments = determine_target_environments(settings)
-
-      target_environments.each do |env_name|
-        # Create Environment instance
-        environment = Lotus::Environment.new(
-          env_name,
-          parent: self
-        )
-
-        # Set cache manager for backward compatibility with tests
-        environment.instance_variable_set(:@cache_manager, cache_manager)
-
-        environments << environment
-      end
-
-      environments
+    def create_group_from_environment(group_name, environment)
+      Lotus::Group.new(
+        group_name,
+        space: environment.space,
+        region: environment.region,
+        application: environment.application,
+        parent: self
+      )
     end
 
     def determine_target_environments(settings)
+      # Handle cases where settings is nil or not the expected type
+      return [] unless settings.respond_to?(:groups)
+
       # Check if specific environments or group was requested in CLI options
       cli_options = settings.instance_variable_get(:@cli_options) || {}
 
@@ -213,17 +225,39 @@ module Lotus
       end
     end
 
-    def initialize_cache_manager(settings)
-      cache_settings = settings.cache_settings
+    # Check if all entities have their data loaded
+    def entities_data_loaded?
+      @entities.all?(&:data)
+    end
 
-      if cache_settings[:enabled]
-        require_relative '../lall/cache_manager'
-        Lall::CacheManager.instance(cache_settings)
-      else
-        # Return a null cache manager if caching is disabled
-        require_relative '../lall/cli'
-        LallCLI::NullCacheManager.new
+    # Find matching secrets for a specific entity based on glob pattern
+    def find_entity_matching_secrets(entity, pattern)
+      matching_secrets = []
+
+      # Convert glob pattern to regex (using same logic as Environment)
+      regex_pattern = glob_to_regex(pattern)
+
+      # Check if entity has secrets array (instantiated from Entity base class)
+      return matching_secrets unless entity.secrets
+
+      # Find matching secrets from the entity's secrets
+      entity.secrets.each do |secret|
+        matching_secrets << secret if secret.name.match?(regex_pattern)
       end
+
+      matching_secrets
+    end
+
+    # Convert glob pattern to regex (same logic as in Environment)
+    def glob_to_regex(pattern)
+      # Convert shell glob pattern to regex
+      # * matches any characters
+      # ? matches any single character
+      escaped = Regexp.escape(pattern)
+      escaped.gsub!('\*', '.*')
+      escaped.gsub!('\?', '.')
+      /^#{escaped}$/i
     end
   end
+  # rubocop:enable Metrics/ClassLength
 end

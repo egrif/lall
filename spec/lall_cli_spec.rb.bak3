@@ -307,4 +307,56 @@ RSpec.describe LallCLI do
     end
   end
 
+  describe '#fetch_env_results' do
+    let(:cli) { LallCLI.new(['-s', 'token', '-e', 'env1', '--no-cache']) }
+    let(:yaml_data) { { 'configs' => { 'api_token' => 'test123' } } }
+
+    before do
+      allow(Lotus::Runner).to receive(:fetch_yaml).and_return(yaml_data)
+      allow(KeySearcher).to receive(:search).and_return([
+                                                          { path: 'configs.api_token', key: 'api_token', value: 'test123' }
+                                                        ])
+    end
+
+    it 'fetches results for all environments in parallel' do
+      envs = %w[env1 env2]
+
+      expect(Lotus::Runner).to receive(:fetch_yaml).with(instance_of(Lotus::Environment))
+      expect(Lotus::Runner).to receive(:fetch_yaml).with(instance_of(Lotus::Environment))
+
+      results = cli.send(:fetch_env_results, envs)
+      expect(results.keys).to contain_exactly('env1', 'env2')
+    end
+
+    it 'extracts relevant data sections for searching' do
+      envs = ['env1']
+      expected_search_data = {
+        'configs' => { 'api_token' => 'test123' }
+      }
+
+      expect(KeySearcher).to receive(:search).with(
+        expected_search_data,
+        anything,
+        anything,
+        anything,
+        hash_including(env: 'env1')
+      )
+
+      cli.send(:fetch_env_results, envs)
+    end
+
+    it 'passes correct options to KeySearcher' do
+      cli = LallCLI.new(['-s', 'token', '-e', 'env1', '-i', '-x', '-d'])
+
+      expect(KeySearcher).to receive(:search).with(
+        anything,
+        'token',
+        [],
+        [],
+        hash_including(env: 'env1', expose: true, insensitive: true)
+      )
+
+      cli.send(:fetch_env_results, ['env1'])
+    end
+  end
 end

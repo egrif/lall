@@ -11,7 +11,6 @@ require_relative 'key_searcher'
 require_relative 'table_formatter'
 require_relative 'cache_manager'
 require_relative 'settings_manager'
-require_relative 'null_cache_manager'
 
 # Keep legacy constants for backward compatibility
 SETTINGS_PATH = File.expand_path('../../config/settings.yml', __dir__)
@@ -225,13 +224,44 @@ class LallCLI
     }
 
     @cache_manager = if cache_options[:enabled] == false
-                       Lall::NullCacheManager.new
+                       NullCacheManager.new
                      else
                        Lall::CacheManager.instance(cache_options)
                      end
   rescue StandardError => e
     warn "Warning: Cache initialization failed (#{e.message}). Disabling cache."
-    @cache_manager = Lall::NullCacheManager.new
+    @cache_manager = NullCacheManager.new
+  end
+
+  # Null object pattern for cache manager
+  class NullCacheManager
+    def get(_key, is_secret: false) # rubocop:disable Lint/UnusedMethodArgument
+      nil
+    end
+
+    def set(_key, _value, is_secret: false) # rubocop:disable Naming/PredicateMethod, Lint/UnusedMethodArgument
+      false
+    end
+
+    def delete(_key) # rubocop:disable Naming/PredicateMethod
+      false
+    end
+
+    def clear # rubocop:disable Naming/PredicateMethod
+      false
+    end
+
+    def clear_cache # rubocop:disable Naming/PredicateMethod
+      false
+    end
+
+    def enabled?
+      false
+    end
+
+    def stats
+      { backend: 'disabled', enabled: false }
+    end
   end
 
   def clear_cache_and_exit
@@ -320,12 +350,16 @@ class LallCLI
     return true if @options[:group] == 'list'
 
     # Check for mutually exclusive options first
-    return false if @options[:env] && @options[:group]
+    if @options[:env] && @options[:group]
+      return false
+    end
 
     # Check for unknown group after mutual exclusion check
-    if @options[:group] && @options[:group] != 'list' && !@settings.groups[@options[:group]]
-      puts("Unknown group: #{@options[:group]}")
-      exit 1
+    if @options[:group] && @options[:group] != 'list'
+      unless @settings.groups[@options[:group]]
+        puts("Unknown group: #{@options[:group]}")
+        exit 1
+      end
     end
 
     @options[:string] &&
@@ -369,6 +403,112 @@ class LallCLI
                 all_keys
               end
     TableFormatter.new(columns, envs, env_results, @options).print_table
+  end
+
+  def fetch_env_results(envs)
+    env_results = {}
+    mutex = Mutex.new
+    threads = create_search_threads(envs, env_results, mutex)
+    threads.each(&:join)
+    env_results
+  end
+
+  def create_search_threads(envs, env_results, mutex)
+    envs.map do |env|
+      Thread.new do
+        search_data = extract_search_data(env)
+        result = perform_search(search_data, env)
+        mutex.synchronize { env_results[env] = result }
+      end
+    end
+  end
+
+  def extract_search_data(env)
+    # Try to get environment data from cache first
+    env_cache_key = generate_cache_key('env', env)
+    cached_data = @cache_manager.get(env_cache_key)
+
+    if cached_data
+      puts "Cache hit for environment: #{env}" if @options[:debug]
+      return cached_data
+    end
+
+    puts "Cache miss for environment: #{env}" if @options[:debug]
+    fetch_and_cache_env_data(env, env_cache_key)
+  end
+
+  def fetch_and_cache_env_data(env, env_cache_key)
+    # Fetch fresh environment data using the unified entity approach
+    env_entity = Lotus::Environment.new(env, application: @application)
+    yaml_data = Lotus::Runner.fetch_yaml(env_entity)
+    return {} if yaml_data.nil?
+
+    search_data = build_search_data(yaml_data)
+    merge_group_data_if_present(search_data, yaml_data, env)
+
+    # Cache the environment data with encryption if it contains secrets
+    has_secrets = search_data.key?('secrets') || search_data.key?('group_secrets')
+    @cache_manager.set(env_cache_key, search_data, is_secret: has_secrets)
+
+    search_data
+  end
+
+  def build_search_data(yaml_data)
+    search_data = {}
+    %w[group configs secrets group_secrets].each do |k|
+      search_data[k] = yaml_data[k] if yaml_data.key?(k)
+    end
+    search_data
+  end
+
+  def merge_group_data_if_present(search_data, yaml_data, env)
+    return unless yaml_data['group']
+
+    group_name = yaml_data['group']
+    group_data = extract_group_data(env, group_name)
+
+    # Merge group secrets into search_data (group configs don't exist in lotus YAML)
+    search_data['group_secrets'] = group_data['secrets'] if group_data['secrets']
+  end
+
+  def extract_group_data(env, group_name)
+    # Try to get group data from cache first
+    group_cache_key = generate_cache_key('group', env, group_name)
+    cached_group_data = @cache_manager.get(group_cache_key)
+
+    if cached_group_data
+      puts "Cache hit for group: #{group_name}" if @options[:debug]
+      return cached_group_data
+    end
+
+    puts "Cache miss for group: #{group_name}" if @options[:debug]
+
+    # Fetch fresh group data using the unified entity approach
+    group_entity = Lotus::Group.new(group_name, application: @application, space: 'prod')
+    group_yaml_data = Lotus::Runner.fetch_yaml(group_entity)
+    return {} if group_yaml_data.nil?
+
+    # Cache the group data with encryption if it contains secrets
+    has_group_secrets = group_yaml_data.key?('secrets')
+    @cache_manager.set(group_cache_key, group_yaml_data, is_secret: has_group_secrets)
+
+    group_yaml_data
+  end
+
+  def generate_cache_key(type, env, group_name = nil)
+    # Create a temporary entity to get proper space/region logic
+    if type == 'env'
+      env_entity = Lotus::Environment.new(env, application: @application)
+      env_entity.cache_key
+    elsif type == 'group' && group_name
+      # For groups, we need to determine space/region from an environment
+      # Default to prod/use1 for now
+      group_entity = Lotus::Group.new(group_name, space: 'prod', region: 'use1', application: @application)
+      group_entity.cache_key
+    else
+      # Fallback
+      "#{type.upcase}:#{group_name || env}:prod:use1:#{@application}"
+    end
   end
 
   def perform_search(search_data, env)

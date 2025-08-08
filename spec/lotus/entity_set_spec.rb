@@ -45,6 +45,7 @@ RSpec.describe Lotus::EntitySet do
         allow(settings).to receive(:groups).and_return(groups)
         allow(settings).to receive(:cache_settings).and_return(cache_settings)
         allow(settings).to receive(:respond_to?).with(:groups).and_return(true)
+        allow(settings).to receive(:respond_to?).with(:cache_settings).and_return(true)
         
         # Mock the cache manager initialization
         allow(Lall::CacheManager).to receive(:new).with(cache_settings).and_return(cache_manager)
@@ -83,7 +84,7 @@ RSpec.describe Lotus::EntitySet do
         let(:null_cache_manager) { double('NullCacheManager') }
 
         before do
-          allow(LallCLI::NullCacheManager).to receive(:new).and_return(null_cache_manager)
+          allow(Lall::NullCacheManager).to receive(:new).and_return(null_cache_manager)
         end
 
         it 'uses NullCacheManager when caching is disabled' do
@@ -131,18 +132,6 @@ RSpec.describe Lotus::EntitySet do
       
       entity_set.remove(env)
       expect(env.entity_set).to be_nil
-    end
-  end
-
-  describe '#find_by_name' do
-    let(:env1) { Lotus::Environment.new('staging-s1') }
-    let(:env2) { Lotus::Environment.new('prod-s1') }
-    let(:entity_set) { described_class.new([env1, env2]) }
-
-    it 'finds environment by name' do
-      expect(entity_set.find_by_name('staging-s1')).to eq(env1)
-      expect(entity_set.find_by_name('prod-s1')).to eq(env2)
-      expect(entity_set.find_by_name('nonexistent')).to be_nil
     end
   end
 

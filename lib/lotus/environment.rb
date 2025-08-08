@@ -78,35 +78,6 @@ module Lotus
       raw_data
     end
 
-    def fetch_secrets(pattern = '*')
-      raise NoMethodError, 'undefined method `fetch_secrets` - requires data to be loaded first' if @data.nil?
-
-      # Find matching secret keys from both environment and group secrets
-      matching_keys = find_matching_secret_keys(pattern)
-
-      return [] if matching_keys.empty?
-
-      # Create Secret instances for each matching key
-      secret_entities = matching_keys.map do |key_info|
-        require_relative 'secret'
-        Lotus::Secret.new(
-          key_info[:key],
-          space: space,
-          region: region,
-          application: @application,
-          parent: key_info[:source_entity]
-        )
-      end
-
-      # Fetch all secrets in parallel using Runner
-      require_relative 'runner'
-      Lotus::Runner.fetch_all(secret_entities)
-
-      # Store secrets and return them
-      @secrets = secret_entities
-      secret_entities
-    end
-
     private
 
     def find_matching_secret_keys(pattern)

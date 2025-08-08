@@ -44,3 +44,8 @@ cache:
   # If file doesn't exist, a new key will be generated
   # Can be overridden by LALL_SECRET_KEY_FILE environment variable
   secret_key_file: ~/.lall/secret.key
+
+# Output formatting
+output:
+  # Placeholder text shown for secret values when not exposing secrets (default: '{SECRET}')
+  secret_placeholder: '{SECRET}'

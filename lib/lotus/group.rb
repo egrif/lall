@@ -21,9 +21,5 @@ module Lotus
       "lotus view -s \\#{space} -r \\#{region} -a #{@application} -g \\#{@name}"
     end
 
-    def lotus_parse(raw_data)
-      # Groups use the raw data as-is
-      raw_data
-    end
   end
 end

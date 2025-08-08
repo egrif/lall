@@ -8,48 +8,49 @@ module Lotus
     DEBUG_MODE = ARGV.include?('-d') || ARGV.include?('--debug') || ENV.fetch('DEBUG', nil)
     TEST_MODE = ENV['RSPEC_CORE_VERSION'] || ENV['RAILS_ENV'] == 'test' || ENV['RACK_ENV'] == 'test'
 
-    # Class-level storage for search context
-    @search_context = {
-      expose: false,
-      search_pattern: nil
-    }
-
-    class << self
-      attr_accessor :search_context
-    end
-
     def self.fetch(entity)
+      start_time = Time.now if DEBUG_MODE
+      
       # Check cache first based on entity type
       cache_manager = self.cache_manager
       cached_data = cached_data_for_entity(entity, cache_manager)
       if cached_data
-        entity.instance_variable_set(:@data, cached_data)
-        # Instantiate secrets after loading cached data
-        entity.send(:instantiate_secrets) if should_instantiate_secrets?(entity)
-        return cached_data
+        parsed_data = entity.lotus_parse(cached_data)
+        return
       end
 
       # Cache miss - fetch from lotus using existing methods for backward compatibility
+      if DEBUG_MODE
+        puts "DEBUG: #{entity.class.name.split('::').last} '#{entity.name}' - cache miss, fetching from lotus..."
+      end
+      
+      fetch_start_time = Time.now if DEBUG_MODE
       raw_data = fetch_yaml(entity)
+      fetch_end_time = Time.now if DEBUG_MODE
 
       return nil unless raw_data
 
       # Let the entity parse the data
       parsed_data = entity.lotus_parse(raw_data)
-      return nil unless parsed_data
-
-      # Set the data and instantiate secrets
-      entity.instance_variable_set(:@data, parsed_data)
-      entity.send(:instantiate_secrets) if should_instantiate_secrets?(entity)
 
       # Cache the result
       set_cached_data_for_entity(entity, cache_manager, parsed_data)
+
+      if DEBUG_MODE
+        total_elapsed = Time.now - start_time
+        fetch_elapsed = fetch_end_time - fetch_start_time
+        puts "DEBUG: #{entity.class.name.split('::').last} '#{entity.name}' - fetched from lotus in #{fetch_elapsed.round(3)}s, total time #{total_elapsed.round(3)}s"
+      end
 
       parsed_data
     end
 
     def self.fetch_all(entities)
       return [] if entities.empty?
+
+      if DEBUG_MODE
+        puts "DEBUG: Fetching #{entities.map(&:name).join(', ')} in parallel..."
+      end
 
       # Use threading to fetch all entities in parallel
       threads = entities.map do |entity|
@@ -66,23 +67,29 @@ module Lotus
     end
 
     def self.should_instantiate_secrets?(entity)
-      return false unless entity.respond_to?(:instantiate_secrets, true)
-      return false if entity.class.name == 'Lotus::Secret'
-      
-      # Only instantiate secrets if we're exposing them and have a search pattern
-      @search_context[:expose] && !@search_context[:search_pattern].nil?
+      # Secrets are now instantiated on-demand during search, not automatically
+      false
     end
 
     def self.fetch_yaml(entity)
       lotus_cmd = entity.lotus_cmd
+      if DEBUG_MODE
+        puts "DEBUG: Executing: #{lotus_cmd}"
+      end
+      
       yaml_output = nil
       Open3.popen3(lotus_cmd) do |_stdin, stdout, stderr, wait_thr|
         yaml_output = stdout.read
         unless wait_thr.value.success?
-          warn "Failed to run lotus command for entity '#{entity.name}': \\#{stderr.read}" unless TEST_MODE
+          warn "Failed to run lotus command for entity '#{entity.name}': #{stderr.read}" unless TEST_MODE
           return nil
         end
       end
+      
+      if DEBUG_MODE
+        puts "DEBUG: Lotus command completed successfully, parsing YAML..."
+      end
+      
       YAML.safe_load(yaml_output)
     end
 

@@ -2,6 +2,7 @@
 
 require_relative 'environment'
 require_relative 'group'
+require 'pry'
 
 module Lotus
   # EntitySet manages collections of Lotus entities (Environments and Groups)
@@ -55,22 +56,28 @@ module Lotus
       @entities
     end
 
-    def fetch_all(pattern = "*")
+    def fetch_all(pattern = nil)
+      # Get pattern from settings if not provided
+      pattern ||= get_search_pattern_from_settings
+      
       # First, instantiate and fetch all environments in parallel
       require_relative 'runner'
-      environments = @entities.select { |e| e.is_a?(Lotus::Environment) }
-      environments = instantiate_all_environments if environments.empty?
+      envs = environments
+      envs = instantiate_all_environments if envs.empty?
       Lotus::Runner.fetch_all(environments)
 
       # Then, get group names from the fetched environments and instantiate groups
-      groups = instantiate_groups_from_environments(environments)
+      grps = instantiate_groups_from_environments(environments)
       Lotus::Runner.fetch_all(groups) unless groups.empty?
 
       # Store both environments and groups in entities
-      @entities = environments + groups
+      @entities = envs + grps
 
-      fetch_secrets(pattern) if pattern && !pattern.empty?
-
+      @entities.each do |entity|
+        # If a search pattern is provided, filter secrets for each entity
+        secrets = entity.matched_secrets(pattern)
+        Lotus::Runner.fetch_all(secrets) unless secrets.empty?
+      end
       # Return self for method chaining
       self
     end
@@ -99,13 +106,6 @@ module Lotus
     #   self
     # end
 
-    # make sure values are known for all secrets that match the glob
-    def fetch_secrets(pattern = '*')
-      @entities.each do |entity|
-        entity.fetch_secrets(pattern)
-      end
-    end
-
     def find_entity(type, name, space, region, application)
       # Find an entity by type, name, space, region, and application
       @entities.find do |entity|
@@ -130,6 +130,14 @@ module Lotus
     end
 
     private
+
+    def get_search_pattern_from_settings
+      return nil unless @settings
+      
+      # Get the search string from CLI options stored in settings
+      cli_options = @settings.instance_variable_get(:@cli_options) || {}
+      cli_options[:string]
+    end
 
     def instantiate_all_environments
       return [] unless @settings

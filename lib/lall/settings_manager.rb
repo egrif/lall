@@ -102,6 +102,13 @@ module Lall
       }
     end
 
+    # Get all output formatting settings as a hash
+    def output_settings
+      {
+        secret_placeholder: get('output.secret_placeholder', '{SECRET}').to_s
+      }
+    end
+
     # Get environment groups
     def groups
       get('groups', {})

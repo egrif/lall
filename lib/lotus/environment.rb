@@ -73,11 +73,6 @@ module Lotus
       "lotus view -s #{space} -r #{region} -e #{@name} -a #{@application} -G"
     end
 
-    def lotus_parse(raw_data)
-      # Build the data structure expected by the system
-      raw_data
-    end
-
     private
 
     def find_matching_secret_keys(pattern)
@@ -91,14 +86,6 @@ module Lotus
         matching_keys << { key: key, source_entity: self } if key.match?(regex_pattern)
       end
 
-      # Check group secret keys
-      group_secret_keys.each do |key|
-        next unless key.match?(regex_pattern)
-
-        # For group secrets, we need the group entity as the source
-        entity = group_entity
-        matching_keys << { key: key, source_entity: entity || self }
-      end
 
       matching_keys
     end

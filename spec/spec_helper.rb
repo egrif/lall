@@ -3,7 +3,6 @@
 require 'rspec'
 require 'yaml'
 require_relative '../lib/lall/cli'
-require_relative '../lib/lall/key_searcher'
 require_relative '../lib/lall/table_formatter'
 require_relative '../lib/lall/cli_options'
 require_relative '../lib/lall/version'

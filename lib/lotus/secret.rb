@@ -13,12 +13,15 @@ module Lotus
     end
 
     def lotus_parse(raw_data)
-      # Groups use the raw data as-is
-      if raw_data =~ /^\s*\w+\s*=\s*(.*)$/
-        ::Regexp.last_match(1).strip
-      else
-        raw_data.strip
-      end
+      @data = (raw_data =~ /^\s*\w+\s*=\s*(.*)$/ ? ::Regexp.last_match(1).strip : raw_data.strip)
+    end
+
+    def value
+      @data
+    end
+
+    def key
+      @name
     end
 
     def secret_type

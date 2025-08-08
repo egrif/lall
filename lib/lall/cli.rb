@@ -7,11 +7,11 @@ require 'lotus/runner'
 require 'lotus/entity'
 require 'lotus/environment'
 require 'lotus/group'
-require_relative 'key_searcher'
 require_relative 'table_formatter'
 require_relative 'cache_manager'
 require_relative 'settings_manager'
 require_relative 'null_cache_manager'
+require_relative '../lotus/entity_set'
 
 # Keep legacy constants for backward compatibility
 SETTINGS_PATH = File.expand_path('../../config/settings.yml', __dir__)
@@ -148,7 +148,9 @@ class LallCLI
     entity_set.fetch_all
 
     env_results = fetch_results_from_entity_set(entity_set)
-    display_results(entity_set.environments.map(&:name), env_results)
+    # Only pass environments that have results (excludes failed environments)
+    successful_envs = env_results.keys
+    display_results(successful_envs, env_results)
   end
 
   def create_entity_set
@@ -161,6 +163,9 @@ class LallCLI
 
     # Entity data should already be loaded by fetch_all in run method
     entity_set.environments.each do |env|
+      # Skip environments that failed to load data
+      next unless env.data
+      
       # Build search data in the format expected by KeySearcher
       search_data = build_search_data_for_entity(env, entity_set)
       
@@ -174,6 +179,9 @@ class LallCLI
 
   def build_search_data_for_entity(env, entity_set)
     search_data = {}
+    
+    # Skip if environment data failed to load
+    return search_data unless env.data
     
     # Add configs from environment
     if env.configs
@@ -426,15 +434,51 @@ class LallCLI
   end
 
   def perform_search(search_data, env)
-    KeySearcher.search(
-      search_data,
-      @options[:string],
-      [],
-      [],
-      env: env,
-      expose: @options[:expose],
-      insensitive: @options[:insensitive],
-      search_data: search_data
-    )
+    # Simple search that just shows secret placeholder for secrets instead of KeySearcher
+    results = []
+    pattern = @options[:string]
+    
+    # Search configs
+    if search_data['configs']
+      search_data['configs'].each do |key, value|
+        if key_matches_pattern?(key, pattern)
+          results << { path: 'configs', key: key, value: value, color: :white }
+        end
+      end
+    end
+    
+    # Search secrets - show placeholder unless exposing
+    if search_data['secrets'] && search_data['secrets']['keys']
+      search_data['secrets']['keys'].each do |secret_key|
+        if key_matches_pattern?(secret_key, pattern)
+          value = @options[:expose] ? '[ACTUAL SECRET]' : @settings.output_settings[:secret_placeholder]
+          results << { path: 'secrets', key: secret_key, value: value, color: :white }
+        end
+      end
+    end
+    
+    # Search group secrets - show placeholder unless exposing  
+    if search_data['group_secrets'] && search_data['group_secrets']['keys']
+      search_data['group_secrets']['keys'].each do |secret_key|
+        if key_matches_pattern?(secret_key, pattern)
+          value = @options[:expose] ? '[ACTUAL GROUP SECRET]' : @settings.output_settings[:secret_placeholder]
+          results << { path: 'group_secrets', key: secret_key, value: value, color: :green }
+        end
+      end
+    end
+    
+    results
+  end
+
+  def key_matches_pattern?(key, pattern)
+    # Handle wildcard patterns
+    if pattern.include?('*')
+      # Convert glob pattern to regex
+      regex_pattern = pattern.gsub('*', '.*')
+      key.match?(/#{regex_pattern}/i)
+    else
+      # Simple substring match
+      key.include?(pattern)
+    end
   end
 end

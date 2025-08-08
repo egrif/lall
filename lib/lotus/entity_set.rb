@@ -55,7 +55,7 @@ module Lotus
       @entities
     end
 
-    def fetch_all
+    def fetch_all(pattern = "*")
       # First, instantiate and fetch all environments in parallel
       require_relative 'runner'
       environments = @entities.select { |e| e.is_a?(Lotus::Environment) }
@@ -68,6 +68,8 @@ module Lotus
 
       # Store both environments and groups in entities
       @entities = environments + groups
+
+      fetch_secrets(pattern) if pattern && !pattern.empty?
 
       # Return self for method chaining
       self
@@ -83,19 +85,19 @@ module Lotus
       @entities.select { |entity| entity.is_a?(Lotus::Group) }
     end
 
-    def fetch
-      # First, fetch all environments in parallel
-      require_relative 'runner'
-      Lotus::Runner.fetch_all(@entities)
+    # def fetch
+    #   # First, fetch all environments in parallel
+    #   require_relative 'runner'
+    #   Lotus::Runner.fetch_all(@entities)
 
-      # Then, create and fetch all groups that these environments belong to
-      environments = @entities.select { |e| e.is_a?(Lotus::Environment) }
-      groups = instantiate_groups_from_environments(environments)
-      Lotus::Runner.fetch_all(groups) unless groups.empty?
+    #   # Then, create and fetch all groups that these environments belong to
+    #   environments = @entities.select { |e| e.is_a?(Lotus::Environment) }
+    #   groups = instantiate_groups_from_environments(environments)
+    #   Lotus::Runner.fetch_all(groups) unless groups.empty?
 
-      # Return self for method chaining
-      self
-    end
+    #   # Return self for method chaining
+    #   self
+    # end
 
     # make sure values are known for all secrets that match the glob
     def fetch_secrets(pattern = '*')

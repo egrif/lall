@@ -69,14 +69,80 @@ RSpec.describe 'Integration Tests', :integration do
       }
     end
 
+    let(:mock_group_data) do
+      {
+        'configs' => {
+          'shared_config' => 'shared_value'
+        },
+        'secrets' => {
+          'keys' => ['group_secret']
+        }
+      }
+    end
+
     before do
-      # Mock Lotus::Runner.fetch_yaml to return our test data
+      # Mock cache manager to always return cache miss
+      allow(Lotus::Runner).to receive(:cache_manager).and_return(nil)
+      allow(Lotus::Runner).to receive(:cached_data_for_entity).and_return(nil)
+
+      # Mock Lotus::Runner.fetch for environments and secrets
+      allow(Lotus::Runner).to receive(:fetch) do |entity|
+        case entity.class.name
+        when 'Lotus::Environment'
+          case entity.name
+          when 'test-env1'
+            # Set the data and call instantiate_secrets
+            entity.instance_variable_set(:@data, mock_env1_data)
+            entity.send(:instantiate_secrets) if entity.respond_to?(:instantiate_secrets, true)
+            mock_env1_data
+          when 'test-env2'
+            # Set the data and call instantiate_secrets
+            entity.instance_variable_set(:@data, mock_env2_data)
+            entity.send(:instantiate_secrets) if entity.respond_to?(:instantiate_secrets, true)
+            mock_env2_data
+          else
+            nil
+          end
+        when 'Lotus::Group'
+          case entity.name
+          when 'test-group'
+            # Set the data and call instantiate_secrets
+            entity.instance_variable_set(:@data, mock_group_data)
+            entity.send(:instantiate_secrets) if entity.respond_to?(:instantiate_secrets, true)
+            mock_group_data
+          else
+            nil
+          end
+        when 'Lotus::Secret'
+          # Mock secret values for testing
+          secret_value = case entity.name
+                         when 'secret_key'
+                           'secret_value_123'
+                         when 'api_secret'
+                           'api_secret_456'
+                         when 'different_secret'
+                           'different_secret_789'
+                         when 'group_secret'
+                           'group_secret_value'
+                         else
+                           'default_secret_value'
+                         end
+          entity.instance_variable_set(:@data, secret_value)
+          secret_value
+        else
+          nil
+        end
+      end
+
+      # Keep the old fetch_yaml mock for backward compatibility
       allow(Lotus::Runner).to receive(:fetch_yaml) do |entity|
         case entity.name
         when 'test-env1'
           mock_env1_data
         when 'test-env2'
           mock_env2_data
+        when 'test-group'
+          mock_group_data
         else
           nil
         end
@@ -121,11 +187,36 @@ RSpec.describe 'Integration Tests', :integration do
       expect(stdout).to include('api_token')
     end
 
-    # Note: Secret exposure testing would require mocking Lotus::Secret entities
-    # This is a more complex test case that can be implemented separately
-    xit 'exposes secrets when -x flag is used' do
-      # This test would require mocking Lotus::Secret entities and their data
-      # For now, focusing on basic config value retrieval
+    it 'exposes secrets when -x flag is used' do
+      output = capture_stdout do
+        begin
+          cli = LallCLI.new(['-s', 'secret_key', '-e', 'test-env1,test-env2', '--no-cache', '-x'])
+          cli.run
+        rescue SystemExit => e
+          @exit_code = e.status
+        end
+      end
+
+      expect(@exit_code).to be_nil
+      expect(output).to include('secret_key')
+      expect(output).to include('secret_value_123')  # The mocked secret value
+      expect(output).to include('test-env1')
+      expect(output).to include('test-env2')
+    end
+
+    it 'shows secret keys but not values when -x flag is not used' do
+      output = capture_stdout do
+        begin
+          cli = LallCLI.new(['-s', 'secret_key', '-e', 'test-env1', '--no-cache'])
+          cli.run
+        rescue SystemExit => e
+          @exit_code = e.status
+        end
+      end
+
+      expect(@exit_code).to be_nil
+      expect(output).to include('secret_key')
+      expect(output).not_to include('secret_value_123')  # Should not show actual secret value
     end
   end
 

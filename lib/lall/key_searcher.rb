@@ -145,6 +145,12 @@ class KeySearcher
     secret_jobs = []
     cache_manager = Lall::CacheManager.instance if cache_manager == :default
 
+    # Set search context for Lotus::Runner to control secret instantiation
+    Lotus::Runner.search_context = {
+      expose: expose,
+      search_pattern: search_str
+    }
+
     # Direct search in specific sections instead of recursive tree traversal
     search_configs_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)
     search_secrets_section(obj, search_str, results, secret_jobs, env, expose, insensitive, search_data)

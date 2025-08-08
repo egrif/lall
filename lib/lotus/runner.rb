@@ -8,12 +8,24 @@ module Lotus
     DEBUG_MODE = ARGV.include?('-d') || ARGV.include?('--debug') || ENV.fetch('DEBUG', nil)
     TEST_MODE = ENV['RSPEC_CORE_VERSION'] || ENV['RAILS_ENV'] == 'test' || ENV['RACK_ENV'] == 'test'
 
+    # Class-level storage for search context
+    @search_context = {
+      expose: false,
+      search_pattern: nil
+    }
+
+    class << self
+      attr_accessor :search_context
+    end
+
     def self.fetch(entity)
       # Check cache first based on entity type
       cache_manager = self.cache_manager
       cached_data = cached_data_for_entity(entity, cache_manager)
       if cached_data
         entity.instance_variable_set(:@data, cached_data)
+        # Instantiate secrets after loading cached data
+        entity.send(:instantiate_secrets) if should_instantiate_secrets?(entity)
         return cached_data
       end
 
@@ -25,6 +37,10 @@ module Lotus
       # Let the entity parse the data
       parsed_data = entity.lotus_parse(raw_data)
       return nil unless parsed_data
+
+      # Set the data and instantiate secrets
+      entity.instance_variable_set(:@data, parsed_data)
+      entity.send(:instantiate_secrets) if should_instantiate_secrets?(entity)
 
       # Cache the result
       set_cached_data_for_entity(entity, cache_manager, parsed_data)
@@ -47,6 +63,14 @@ module Lotus
 
       # Return array of entities with loaded data
       entities
+    end
+
+    def self.should_instantiate_secrets?(entity)
+      return false unless entity.respond_to?(:instantiate_secrets, true)
+      return false if entity.class.name == 'Lotus::Secret'
+      
+      # Only instantiate secrets if we're exposing them and have a search pattern
+      @search_context[:expose] && !@search_context[:search_pattern].nil?
     end
 
     def self.fetch_yaml(entity)

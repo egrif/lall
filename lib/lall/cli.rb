@@ -70,9 +70,9 @@ class LallCLI
     opts.on('-v', '--pivot', 'Pivot the table so environments are rows and keys/paths are columns (optional)') do
       @raw_options[:pivot] = true
     end
-    opts.on('-t[LEN]', '--truncate[=LEN]', Integer,
+    opts.on('-t LEN', '--truncate=LEN', Integer,
             'Truncate output values longer than LEN (default 40) with ellipsis in the middle') do |v|
-      @raw_options[:truncate] = v.nil? ? 40 : v
+      @raw_options[:truncate] = v
     end
   end
 
@@ -161,12 +161,66 @@ class LallCLI
 
     # Entity data should already be loaded by fetch_all in run method
     entity_set.environments.each do |env|
-      env_data = env.data || {}
-      result = perform_search(env_data, env.name)
+      # Build search data in the format expected by KeySearcher
+      search_data = build_search_data_for_entity(env, entity_set)
+      
+      # Perform search using the constructed search data
+      result = perform_search(search_data, env.name)
       env_results[env.name] = result
     end
 
     env_results
+  end
+
+  def build_search_data_for_entity(env, entity_set)
+    search_data = {}
+    
+    # Add configs from environment
+    if env.configs
+      search_data['configs'] = env.configs
+    end
+    
+    # Add secrets from environment (if expose is enabled, fetch secret values)
+    if env.secrets && !env.secrets.empty?
+      search_data['secrets'] = {}
+      if @options[:expose]
+        # Get secret values from the instantiated secret objects
+        env.secrets.each do |secret|
+          search_data['secrets'][secret.name] = secret.data
+        end
+        # Also maintain the keys array for KeySearcher compatibility
+        search_data['secrets']['keys'] = env.secrets.map(&:name)
+      else
+        # Just store the secret keys for pattern matching
+        search_data['secrets']['keys'] = env.secrets.map(&:name)
+      end
+    end
+    
+    # Add group secrets (find the group for this environment)
+    if env.group_name
+      group = entity_set.groups.find { |g| g.name == env.group_name }
+      if group && group.data # Check if group data was successfully loaded
+        begin
+          group_secrets = group.secrets
+          if group_secrets && !group_secrets.empty?
+            search_data['group_secrets'] = {}
+            if @options[:expose]
+              # Get group secret values from the instantiated secret objects
+              group_secrets.each do |secret|
+                search_data['group_secrets'][secret.name] = secret.data
+              end
+            else
+              # Just store the group secret keys for pattern matching
+              search_data['group_secrets']['keys'] = group_secrets.map(&:name)
+            end
+          end
+        rescue NoMethodError
+          # Group data failed to load, skip group secrets
+        end
+      end
+    end
+    
+    search_data
   end
 
   def resolve_core_options(resolved)

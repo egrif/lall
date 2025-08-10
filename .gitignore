@@ -21,3 +21,4 @@ pry_history
 # Ignore OS junk
 Thumbs.db
 
+spec/examples.txt

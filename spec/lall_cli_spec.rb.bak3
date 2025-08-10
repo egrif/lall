@@ -59,11 +59,11 @@ RSpec.describe LallCLI do
         expect(options[:truncate]).to eq(50)
       end
 
-      it 'parses truncate option with value' do
-        cli = LallCLI.new(['-s', 'token', '-e', 'prod', '-t', '50'])
+      it 'parses truncate option without value (uses default)' do
+        cli = LallCLI.new(['-s', 'token', '-e', 'prod', '-t'])
         options = cli.instance_variable_get(:@options)
 
-        expect(options[:truncate]).to eq(50)
+        expect(options[:truncate]).to eq(40)
       end
     end
 
@@ -150,7 +150,9 @@ RSpec.describe LallCLI do
                                                                   'configs' => { 'api_token' => 'test_token_123' },
                                                                   'secrets' => { 'keys' => ['secret_key'] }
                                                                 })
-        # Note: KeySearcher has been eliminated - CLI now uses entity-based search
+        allow(KeySearcher).to receive(:search).and_return([
+                                                            { path: 'configs.api_token', key: 'api_token', value: 'test_token_123' }
+                                                          ])
       end
 
       it 'processes environment list from -e option' do
@@ -159,8 +161,8 @@ RSpec.describe LallCLI do
         # Mock entity-based system
         entity_set = double('entity_set')
         environments = [
-          double('prod', name: 'prod', data: { 'configs' => { 'api_token' => 'prod_token' } }, configs: { 'api_token' => 'prod_token' }, secrets: [], group_name: nil),
-          double('staging', name: 'staging', data: { 'configs' => { 'api_token' => 'staging_token' } }, configs: { 'api_token' => 'staging_token' }, secrets: [], group_name: nil)
+          double('prod', name: 'prod', data: { 'configs' => { 'api_token' => 'prod_token' } }),
+          double('staging', name: 'staging', data: { 'configs' => { 'api_token' => 'staging_token' } })
         ]
         
         allow(cli).to receive(:create_entity_set).and_return(entity_set)
@@ -176,9 +178,9 @@ RSpec.describe LallCLI do
         # Mock entity-based system
         entity_set = double('entity_set')
         environments = [
-          double('staging', name: 'staging', data: { 'configs' => { 'api_token' => 'staging_token' } }, configs: { 'api_token' => 'staging_token' }, secrets: [], group_name: nil),
-          double('staging-s2', name: 'staging-s2', data: { 'configs' => { 'api_token' => 'staging_s2_token' } }, configs: { 'api_token' => 'staging_s2_token' }, secrets: [], group_name: nil),
-          double('staging-s3', name: 'staging-s3', data: { 'configs' => { 'api_token' => 'staging_s3_token' } }, configs: { 'api_token' => 'staging_s3_token' }, secrets: [], group_name: nil)
+          double('staging', name: 'staging', data: { 'configs' => { 'api_token' => 'staging_token' } }),
+          double('staging-s2', name: 'staging-s2', data: { 'configs' => { 'api_token' => 'staging_s2_token' } }),
+          double('staging-s3', name: 'staging-s3', data: { 'configs' => { 'api_token' => 'staging_s3_token' } })
         ]
         
         allow(cli).to receive(:create_entity_set).and_return(entity_set)
@@ -194,8 +196,8 @@ RSpec.describe LallCLI do
         # Mock entity-based system
         entity_set = double('entity_set')
         environments = [
-          double('prod', name: 'prod', data: { 'configs' => { 'token' => 'prod_token' } }, configs: { 'token' => 'prod_token' }, secrets: [], group_name: nil),
-          double('prod-s2', name: 'prod-s2', data: { 'configs' => { 'token' => 'prod_s2_token' } }, configs: { 'token' => 'prod_s2_token' }, secrets: [], group_name: nil)
+          double('prod', name: 'prod', data: { 'configs' => { 'token' => 'prod_token' } }),
+          double('prod-s2', name: 'prod-s2', data: { 'configs' => { 'token' => 'prod_s2_token' } })
         ]
         
         allow(cli).to receive(:create_entity_set).and_return(entity_set)
@@ -206,17 +208,8 @@ RSpec.describe LallCLI do
       end
 
       it 'handles no results found' do
-        # Mock entity-based system to return empty results
+        allow(KeySearcher).to receive(:search).and_return([])
         cli = LallCLI.new(['-s', 'nonexistent', '-e', 'prod'])
-        
-        entity_set = double('entity_set')
-        environments = [
-          double('prod', name: 'prod', data: { 'configs' => {} }, configs: {}, secrets: [], group_name: nil)
-        ]
-        
-        allow(cli).to receive(:create_entity_set).and_return(entity_set)
-        allow(entity_set).to receive(:fetch_all)
-        allow(entity_set).to receive(:environments).and_return(environments)
 
         expect { cli.run }.to output(/No keys found/).to_stdout
       end
@@ -314,4 +307,56 @@ RSpec.describe LallCLI do
     end
   end
 
+  describe '#fetch_env_results' do
+    let(:cli) { LallCLI.new(['-s', 'token', '-e', 'env1', '--no-cache']) }
+    let(:yaml_data) { { 'configs' => { 'api_token' => 'test123' } } }
+
+    before do
+      allow(Lotus::Runner).to receive(:fetch_yaml).and_return(yaml_data)
+      allow(KeySearcher).to receive(:search).and_return([
+                                                          { path: 'configs.api_token', key: 'api_token', value: 'test123' }
+                                                        ])
+    end
+
+    it 'fetches results for all environments in parallel' do
+      envs = %w[env1 env2]
+
+      expect(Lotus::Runner).to receive(:fetch_yaml).with(instance_of(Lotus::Environment))
+      expect(Lotus::Runner).to receive(:fetch_yaml).with(instance_of(Lotus::Environment))
+
+      results = cli.send(:fetch_env_results, envs)
+      expect(results.keys).to contain_exactly('env1', 'env2')
+    end
+
+    it 'extracts relevant data sections for searching' do
+      envs = ['env1']
+      expected_search_data = {
+        'configs' => { 'api_token' => 'test123' }
+      }
+
+      expect(KeySearcher).to receive(:search).with(
+        expected_search_data,
+        anything,
+        anything,
+        anything,
+        hash_including(env: 'env1')
+      )
+
+      cli.send(:fetch_env_results, envs)
+    end
+
+    it 'passes correct options to KeySearcher' do
+      cli = LallCLI.new(['-s', 'token', '-e', 'env1', '-i', '-x', '-d'])
+
+      expect(KeySearcher).to receive(:search).with(
+        anything,
+        'token',
+        [],
+        [],
+        hash_including(env: 'env1', expose: true, insensitive: true)
+      )
+
+      cli.send(:fetch_env_results, ['env1'])
+    end
+  end
 end

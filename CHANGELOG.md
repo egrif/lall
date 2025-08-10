@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.8.0] - 2025-01-27
+
+### Added
+- Entity-based search architecture with direct CLI search implementation
+- Settings-based configurable secret placeholder (default: '{SECRET}')
+- Enhanced secret exposure functionality with -x flag showing actual values
+
+### Changed
+- **BREAKING**: Eliminated KeySearcher class in favor of entity-based search
+- Moved search logic directly into CLI class for simplified architecture
+- Updated all tests to match new entity-based architecture (161 unit + 9 integration tests)
+- Improved secret value handling with proper exposure control
+
+### Fixed
+- Runner.fetch bug with Array data type handling in cached data
+- Secret exposure logic to correctly display actual values with -x flag
+- Thread-safe data handling in parallel entity processing
+
+### Internal
+- Comprehensive test suite updates for new architecture
+- Enhanced error handling for Array data types in Runner
+- Improved test coverage for secret functionality
+
 ## [0.7.0] - 2025-08-02
 
 ### Added

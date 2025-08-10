@@ -8,98 +8,122 @@ module Lotus
     DEBUG_MODE = ARGV.include?('-d') || ARGV.include?('--debug') || ENV.fetch('DEBUG', nil)
     TEST_MODE = ENV['RSPEC_CORE_VERSION'] || ENV['RAILS_ENV'] == 'test' || ENV['RACK_ENV'] == 'test'
 
-    def self.fetch_env_yaml(env)
-      s_arg, r_arg = get_lotus_args(env)
-      lotus_cmd = "lotus view -s \\#{s_arg} -e \\#{env} -a greenhouse -G"
-      lotus_cmd += " -r \\#{r_arg}" if r_arg
-      yaml_output = nil
-      Open3.popen3(lotus_cmd) do |_stdin, stdout, stderr, wait_thr|
-        yaml_output = stdout.read
-        unless wait_thr.value.success?
-          warn "Failed to run lotus command for env '#{env}': \\#{stderr.read}" unless TEST_MODE
-          return nil
+    def self.fetch(entity)
+      start_time = Time.now if DEBUG_MODE
+
+      # Check cache first based on entity type
+      cache_manager = self.cache_manager
+      cached_data = cached_data_for_entity(entity, cache_manager)
+      if cached_data
+        entity.lotus_parse(cached_data)
+        if DEBUG_MODE
+          elapsed = Time.now - start_time
+          puts "DEBUG: #{entity.lotus_type} '#{entity.name}' - loaded from cache in #{elapsed.round(3)}s"
         end
+        return cached_data
       end
-      YAML.safe_load(yaml_output)
+
+      # Cache miss - fetch from lotus using existing methods for backward compatibility
+      puts "DEBUG: #{entity.lotus_type} '#{entity.name}' - cache miss, fetching from lotus..." if DEBUG_MODE
+
+      fetch_start_time = Time.now if DEBUG_MODE
+      raw_data = fetch_yaml(entity)
+      fetch_end_time = Time.now if DEBUG_MODE
+
+      return nil unless raw_data
+
+      # Let the entity parse the data
+      entity.lotus_parse(raw_data)
+
+      # Cache the raw data, not the parsed result
+      set_cached_data_for_entity(entity, cache_manager, raw_data)
+
+      if DEBUG_MODE
+        total_elapsed = Time.now - start_time
+        fetch_elapsed = fetch_end_time - fetch_start_time
+        entity_type = entity.class.name.split('::').last
+        fetch_time = fetch_elapsed.round(3)
+        total_time = total_elapsed.round(3)
+        puts "DEBUG: #{entity_type} '#{entity.name}' - fetched from lotus in #{fetch_time}s, total time #{total_time}s"
+      end
+
+      raw_data
     end
 
-    def self.fetch_group_yaml(env, group_name)
-      s_arg, r_arg = get_lotus_args(env)
-      lotus_cmd = "lotus view -s \\#{s_arg}"
-      lotus_cmd += " -r \\#{r_arg}" if r_arg
-      lotus_cmd += " -a greenhouse -g \\#{group_name}"
-      yaml_output = nil
-      Open3.popen3(lotus_cmd) do |_stdin, stdout, stderr, wait_thr|
-        yaml_output = stdout.read
-        unless wait_thr.value.success?
-          warn "Failed to run lotus command for group '#{group_name}': \\#{stderr.read}" unless TEST_MODE
-          return nil
-        end
-      end
-      YAML.safe_load(yaml_output)
-    end
+    def self.fetch_all(entities)
+      return [] if entities.empty?
 
-    def self.get_lotus_args(env)
-      s_arg = if env.start_with?('prod') || env.start_with?('staging')
-                'prod'
-              else
-                env
-              end
-      r_arg = nil
-      if env =~ /s(\d+)$/
-        num = ::Regexp.last_match(1).to_i
-        if num.between?(1, 99)
-          r_arg = 'use1'
-        elsif num.between?(101, 199)
-          r_arg = 'euc1'
-        elsif num.between?(201, 299)
-          r_arg = 'apse2'
-        end
-      end
-      [s_arg, r_arg]
-    end
+      puts "DEBUG: Fetching #{entities.map(&:name).join(', ')} in parallel..." if DEBUG_MODE
 
-    def self.secret_get(env, secret_key, group: nil)
-      s_arg, r_arg = get_lotus_args(env)
-      lotus_cmd = if group
-                    "lotus secret get #{secret_key} -s \\#{s_arg} -g \\#{group} -a greenhouse "
-                  else
-                    "lotus secret get #{secret_key} -s \\#{s_arg} -e \\#{env} -a greenhouse "
-                  end
-      lotus_cmd += " -r \\#{r_arg}" if r_arg
-      # puts lotus_cmd if DEBUG_MODE
-      secret_output = nil
-      Open3.popen3(lotus_cmd) do |_stdin, stdout, stderr, wait_thr|
-        secret_output = stdout.read
-        unless wait_thr.value.success?
-          warn "Failed to run lotus secret get for env '#{env}', key '#{secret_key}': \\#{stderr.read}" unless TEST_MODE
-          return nil
-        end
-      end
-      # Expect output like KEY=value, return just the value
-      if secret_output =~ /^\s*\w+\s*=\s*(.*)$/
-        ::Regexp.last_match(1).strip
-      else
-        secret_output.strip
-      end
-    end
-
-    def self.secret_get_many(env, secret_keys)
-      results = {}
-      threads = secret_keys.map do |key|
+      # Use threading to fetch all entities in parallel
+      threads = entities.map do |entity|
         Thread.new do
-          value = secret_get(env, key)
-          results[key] = value
+          fetch(entity)
         end
       end
+
+      # Wait for all threads to complete
       threads.each(&:join)
-      results
+
+      # Return array of entities with loaded data
+      entities
+    end
+
+    def self.should_instantiate_secrets?(_entity)
+      # Secrets are now instantiated on-demand during search, not automatically
+      false
+    end
+
+    def self.fetch_yaml(entity)
+      lotus_cmd = entity.lotus_cmd
+      puts "DEBUG: Executing: #{lotus_cmd}" if DEBUG_MODE
+
+      yaml_output = nil
+      Open3.popen3(lotus_cmd) do |_stdin, stdout, stderr, wait_thr|
+        yaml_output = stdout.read
+        unless wait_thr.value.success?
+          warn "Failed to run lotus command for entity '#{entity.name}': #{stderr.read}" unless TEST_MODE
+          return nil
+        end
+      end
+
+      puts 'DEBUG: Lotus command completed successfully, parsing YAML...' if DEBUG_MODE
+
+      YAML.safe_load(yaml_output)
     end
 
     def self.ping(env)
-      s_arg, = get_lotus_args(env)
-      ping_cmd = "lotus ping -s \\#{s_arg} > /dev/null 2>&1"
+      # Use the environment's space for the ping command
+      space = env.respond_to?(:space) ? env.space : 'prod'
+      ping_cmd = "lotus ping -s \\#{space} > /dev/null 2>&1"
       system(ping_cmd)
+    end
+
+    def self.cache_manager
+      require_relative '../lall/cache_manager'
+      Lall::CacheManager.instance
+    end
+
+    def self.cached_data_for_entity(entity, cache_manager)
+      return nil unless cache_manager.respond_to?(:get_entity_data)
+
+      cache_manager.get_entity_data(entity)
+    end
+
+    def self.set_cached_data_for_entity(entity, cache_manager, data)
+      return false unless cache_manager.respond_to?(:set_entity_data)
+
+      # Determine if this data contains secrets for proper encryption
+      has_secrets = case entity.class.name
+                    when 'Lotus::Secret'
+                      true
+                    when 'Lotus::Environment', 'Lotus::Group'
+                      data.is_a?(Hash) && (data.key?('secrets') || data.key?('group_secrets'))
+                    else
+                      false
+                    end
+
+      cache_manager.set_entity_data(entity, data, is_secret: has_secrets)
     end
   end
 end

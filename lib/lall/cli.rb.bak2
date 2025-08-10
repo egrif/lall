@@ -7,11 +7,10 @@ require 'lotus/runner'
 require 'lotus/entity'
 require 'lotus/environment'
 require 'lotus/group'
+require_relative 'key_searcher'
 require_relative 'table_formatter'
 require_relative 'cache_manager'
 require_relative 'settings_manager'
-require_relative 'null_cache_manager'
-require_relative '../lotus/entity_set'
 
 # Keep legacy constants for backward compatibility
 SETTINGS_PATH = File.expand_path('../../config/settings.yml', __dir__)
@@ -70,9 +69,9 @@ class LallCLI
     opts.on('-v', '--pivot', 'Pivot the table so environments are rows and keys/paths are columns (optional)') do
       @raw_options[:pivot] = true
     end
-    opts.on('-t LEN', '--truncate=LEN', Integer,
+    opts.on('-t[LEN]', '--truncate[=LEN]', Integer,
             'Truncate output values longer than LEN (default 40) with ellipsis in the middle') do |v|
-      @raw_options[:truncate] = v
+      @raw_options[:truncate] = v.nil? ? 40 : v
     end
   end
 
@@ -148,9 +147,7 @@ class LallCLI
     entity_set.fetch_all
 
     env_results = fetch_results_from_entity_set(entity_set)
-    # Only pass environments that have results (excludes failed environments)
-    successful_envs = env_results.keys
-    display_results(successful_envs, env_results)
+    display_results(entity_set.environments.map(&:name), env_results)
   end
 
   def create_entity_set
@@ -163,73 +160,12 @@ class LallCLI
 
     # Entity data should already be loaded by fetch_all in run method
     entity_set.environments.each do |env|
-      # Skip environments that failed to load data
-      next unless env.data
-
-      # Build search data in the format expected by KeySearcher
-      search_data = build_search_data_for_entity(env, entity_set)
-
-      # Perform search using the constructed search data
-      result = perform_search(search_data, env.name)
+      env_data = env.data || {}
+      result = perform_search(env_data, env.name)
       env_results[env.name] = result
     end
 
     env_results
-  end
-
-  def build_search_data_for_entity(env, entity_set)
-    search_data = {}
-
-    # Skip if environment data failed to load
-    return search_data unless env.data
-
-    # Add configs from environment
-    search_data['configs'] = env.configs if env.configs
-
-    # Add secrets from environment (if expose is enabled, fetch secret values)
-    if env.secrets && !env.secrets.empty?
-      search_data['secrets'] = {}
-      if @options[:expose]
-        # Get secret values from the instantiated secret objects
-        env.secrets.each do |secret|
-          search_data['secrets'][secret.name] = secret.data
-        end
-        # Also maintain the keys array for KeySearcher compatibility
-      end
-      # Just store the secret keys for pattern matching
-      search_data['secrets']['keys'] = env.secrets.map(&:name)
-    end
-
-    # Add group secrets (find the group for this environment)
-    if env.group_name
-      group = entity_set.groups.find { |g| g.name == env.group_name }
-      add_group_data_to_search_data(search_data, group) if group&.data
-    end
-
-    search_data
-  end
-
-  def add_group_data_to_search_data(search_data, group)
-    # Add group configs for color comparison
-    group_configs = group.configs
-    search_data['group_configs'] = group_configs if group_configs && !group_configs.empty?
-
-    # Add group secrets
-    group_secrets = group.secrets
-    return unless group_secrets && !group_secrets.empty?
-
-    search_data['group_secrets'] = {}
-    if @options[:expose]
-      # Get group secret values from the instantiated secret objects
-      group_secrets.each do |secret|
-        search_data['group_secrets'][secret.name] = secret.data
-      end
-    else
-      # Just store the group secret keys for pattern matching
-      search_data['group_secrets']['keys'] = group_secrets.map(&:name)
-    end
-  rescue NoMethodError
-    # Group data failed to load, skip group data
   end
 
   def resolve_core_options(resolved)
@@ -288,13 +224,44 @@ class LallCLI
     }
 
     @cache_manager = if cache_options[:enabled] == false
-                       Lall::NullCacheManager.new
+                       NullCacheManager.new
                      else
                        Lall::CacheManager.instance(cache_options)
                      end
   rescue StandardError => e
     warn "Warning: Cache initialization failed (#{e.message}). Disabling cache."
-    @cache_manager = Lall::NullCacheManager.new
+    @cache_manager = NullCacheManager.new
+  end
+
+  # Null object pattern for cache manager
+  class NullCacheManager
+    def get(_key, is_secret: false) # rubocop:disable Lint/UnusedMethodArgument
+      nil
+    end
+
+    def set(_key, _value, is_secret: false) # rubocop:disable Naming/PredicateMethod, Lint/UnusedMethodArgument
+      false
+    end
+
+    def delete(_key) # rubocop:disable Naming/PredicateMethod
+      false
+    end
+
+    def clear # rubocop:disable Naming/PredicateMethod
+      false
+    end
+
+    def clear_cache # rubocop:disable Naming/PredicateMethod
+      false
+    end
+
+    def enabled?
+      false
+    end
+
+    def stats
+      { backend: 'disabled', enabled: false }
+    end
   end
 
   def clear_cache_and_exit
@@ -383,12 +350,16 @@ class LallCLI
     return true if @options[:group] == 'list'
 
     # Check for mutually exclusive options first
-    return false if @options[:env] && @options[:group]
+    if @options[:env] && @options[:group]
+      return false
+    end
 
     # Check for unknown group after mutual exclusion check
-    if @options[:group] && @options[:group] != 'list' && !@settings.groups[@options[:group]]
-      puts("Unknown group: #{@options[:group]}")
-      exit 1
+    if @options[:group] && @options[:group] != 'list'
+      unless @settings.groups[@options[:group]]
+        puts("Unknown group: #{@options[:group]}")
+        exit 1
+      end
     end
 
     @options[:string] &&
@@ -419,10 +390,9 @@ class LallCLI
     if @options[:pivot]
       display_pivot_table(envs, env_results, all_keys, all_paths)
     elsif @options[:path_also]
-      TableFormatter.new([], envs, env_results, @options, @settings).print_path_table(all_paths, all_keys, envs,
-                                                                                      env_results)
+      TableFormatter.new([], envs, env_results, @options).print_path_table(all_paths, all_keys, envs, env_results)
     else
-      TableFormatter.new([], envs, env_results, @options, @settings).print_key_table(all_keys, envs, env_results)
+      TableFormatter.new([], envs, env_results, @options).print_key_table(all_keys, envs, env_results)
     end
   end
 
@@ -432,101 +402,125 @@ class LallCLI
               else
                 all_keys
               end
-    TableFormatter.new(columns, envs, env_results, @options, @settings).print_table
+    TableFormatter.new(columns, envs, env_results, @options).print_table
   end
 
-  def perform_search(search_data, _env)
-    # Simple search that just shows secret placeholder for secrets instead of KeySearcher
-    results = []
-    pattern = @options[:string]
-
-    # Search configs with intelligent coloring
-    search_data['configs']&.each do |key, value|
-      next unless key_matches_pattern?(key, pattern)
-
-      # Determine color based on whether this value exists in group configs
-      color = determine_config_color(key, value, search_data)
-      results << { path: 'configs', key: key, value: value, color: color }
-    end
-
-    # Search secrets - show actual values if exposing, otherwise show placeholder
-    if search_data['secrets'] && search_data['secrets']['keys']
-      search_data['secrets']['keys'].each do |secret_key|
-        next unless key_matches_pattern?(secret_key, pattern)
-
-        value = if @options[:expose] && search_data['secrets'][secret_key]
-                  search_data['secrets'][secret_key]
-                else
-                  @settings.get('output.secret_placeholder', '{SECRET}')
-                end
-        color = @settings.get('output.colors.from_env', :white)
-        results << { path: 'secrets', key: secret_key, value: value, color: color }
-      end
-    end
-
-    # Search group secrets - show actual values if exposing, otherwise show placeholder
-    if search_data['group_secrets'] && search_data['group_secrets']['keys']
-      search_data['group_secrets']['keys'].each do |secret_key|
-        next unless key_matches_pattern?(secret_key, pattern)
-
-        value = if @options[:expose] && search_data['group_secrets'][secret_key]
-                  search_data['group_secrets'][secret_key]
-                else
-                  @settings.get('output.secret_placeholder', '{SECRET}')
-                end
-        color = @settings.get('output.colors.from_group', :green)
-        results << { path: 'group_secrets', key: secret_key, value: value, color: color }
-      end
-    end
-
-    results
+  def fetch_env_results(envs)
+    env_results = {}
+    mutex = Mutex.new
+    threads = create_search_threads(envs, env_results, mutex)
+    threads.each(&:join)
+    env_results
   end
 
-  # Determine the appropriate color for a config value based on group comparison
-  def determine_config_color(key, env_value, search_data)
-    # Check if there's a corresponding group config value
-    group_configs = search_data['group_configs']
-    return @settings.get('output.colors.from_env', :white) unless group_configs
+  def create_search_threads(envs, env_results, mutex)
+    envs.map do |env|
+      Thread.new do
+        search_data = extract_search_data(env)
+        result = perform_search(search_data, env)
+        mutex.synchronize { env_results[env] = result }
+      end
+    end
+  end
 
-    group_value = group_configs[key]
-    return @settings.get('output.colors.from_env', :white) unless group_value
+  def extract_search_data(env)
+    # Try to get environment data from cache first
+    env_cache_key = generate_cache_key('env', env)
+    cached_data = @cache_manager.get(env_cache_key)
 
-    # Compare environment value with group value
-    if env_value == group_value
-      @settings.get('output.colors.env_mirrors_group', :blue)
+    if cached_data
+      puts "Cache hit for environment: #{env}" if @options[:debug]
+      return cached_data
+    end
+
+    puts "Cache miss for environment: #{env}" if @options[:debug]
+    fetch_and_cache_env_data(env, env_cache_key)
+  end
+
+  def fetch_and_cache_env_data(env, env_cache_key)
+    # Fetch fresh environment data using the unified entity approach
+    env_entity = Lotus::Environment.new(env, application: @application)
+    yaml_data = Lotus::Runner.fetch_yaml(env_entity)
+    return {} if yaml_data.nil?
+
+    search_data = build_search_data(yaml_data)
+    merge_group_data_if_present(search_data, yaml_data, env)
+
+    # Cache the environment data with encryption if it contains secrets
+    has_secrets = search_data.key?('secrets') || search_data.key?('group_secrets')
+    @cache_manager.set(env_cache_key, search_data, is_secret: has_secrets)
+
+    search_data
+  end
+
+  def build_search_data(yaml_data)
+    search_data = {}
+    %w[group configs secrets group_secrets].each do |k|
+      search_data[k] = yaml_data[k] if yaml_data.key?(k)
+    end
+    search_data
+  end
+
+  def merge_group_data_if_present(search_data, yaml_data, env)
+    return unless yaml_data['group']
+
+    group_name = yaml_data['group']
+    group_data = extract_group_data(env, group_name)
+
+    # Merge group secrets into search_data (group configs don't exist in lotus YAML)
+    search_data['group_secrets'] = group_data['secrets'] if group_data['secrets']
+  end
+
+  def extract_group_data(env, group_name)
+    # Try to get group data from cache first
+    group_cache_key = generate_cache_key('group', env, group_name)
+    cached_group_data = @cache_manager.get(group_cache_key)
+
+    if cached_group_data
+      puts "Cache hit for group: #{group_name}" if @options[:debug]
+      return cached_group_data
+    end
+
+    puts "Cache miss for group: #{group_name}" if @options[:debug]
+
+    # Fetch fresh group data using the unified entity approach
+    group_entity = Lotus::Group.new(group_name, application: @application, space: 'prod')
+    group_yaml_data = Lotus::Runner.fetch_yaml(group_entity)
+    return {} if group_yaml_data.nil?
+
+    # Cache the group data with encryption if it contains secrets
+    has_group_secrets = group_yaml_data.key?('secrets')
+    @cache_manager.set(group_cache_key, group_yaml_data, is_secret: has_group_secrets)
+
+    group_yaml_data
+  end
+
+  def generate_cache_key(type, env, group_name = nil)
+    # Create a temporary entity to get proper space/region logic
+    if type == 'env'
+      env_entity = Lotus::Environment.new(env, application: @application)
+      env_entity.cache_key
+    elsif type == 'group' && group_name
+      # For groups, we need to determine space/region from an environment
+      # Default to prod/use1 for now
+      group_entity = Lotus::Group.new(group_name, space: 'prod', region: 'use1', application: @application)
+      group_entity.cache_key
     else
-      @settings.get('output.colors.env_changes_group', :yellow)
+      # Fallback
+      "#{type.upcase}:#{group_name || env}:prod:use1:#{@application}"
     end
   end
 
-  def key_matches_pattern?(key, pattern)
-    # Handle wildcard patterns
-    if pattern.include?('*')
-      # Convert glob pattern to regex with proper anchoring
-      # * at the beginning means "ends with"
-      # * at the end means "starts with"
-      # * in the middle means "contains with wildcard"
-      if pattern.start_with?('*') && pattern.end_with?('*')
-        # *pattern* - contains
-        inner_pattern = pattern[1..-2]
-        regex_pattern = ".*#{Regexp.escape(inner_pattern)}.*"
-      elsif pattern.start_with?('*')
-        # *pattern - ends with
-        suffix_pattern = pattern[1..]
-        regex_pattern = ".*#{Regexp.escape(suffix_pattern)}$"
-      elsif pattern.end_with?('*')
-        # pattern* - starts with
-        prefix_pattern = pattern[0..-2]
-        regex_pattern = "^#{Regexp.escape(prefix_pattern)}.*"
-      else
-        # pattern with * in middle - convert to regex
-        regex_pattern = pattern.split('*').map { |part| Regexp.escape(part) }.join('.*')
-        regex_pattern = "^#{regex_pattern}$"
-      end
-      key.match?(/#{regex_pattern}/i)
-    else
-      # Simple substring match
-      key.include?(pattern)
-    end
+  def perform_search(search_data, env)
+    KeySearcher.search(
+      search_data,
+      @options[:string],
+      [],
+      [],
+      env: env,
+      expose: @options[:expose],
+      insensitive: @options[:insensitive],
+      search_data: search_data
+    )
   end
 end

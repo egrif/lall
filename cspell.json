@@ -45,13 +45,18 @@
     "caching",
     "cacheable",
     "bytesize",
-    "dbsize"
+    "dbsize",
+    "grps",
+    "fnmatch",
+    "CASEFOLD",
+    "kwargs"
   ],
   "flagWords": [],
   "ignorePaths": [
     "node_modules/**",
     ".git/**",
     "tmp/**",
-    "*.log"
+    "*.log",
+    "cspell.json"
   ]
 }

@@ -250,4 +250,111 @@ RSpec.describe Lall::CacheManager do
       expect(cache2.stats[:cache_prefix]).to eq('test-app')
     end
   end
+
+  describe '#purge_entity' do
+    let(:manager) { described_class.instance(cache_config) }
+    let(:environment) { Lotus::Environment.new('test-env', space: 'prod', region: 'use1', application: 'greenhouse') }
+    let(:group) { Lotus::Group.new('test-group', space: 'prod', region: 'use1', application: 'greenhouse') }
+
+    before do
+      # Set up some test data in cache
+      manager.set_entity_data(environment, { 'configs' => { 'key' => 'value' } })
+      manager.set_entity_data(group, { 'configs' => { 'group_key' => 'group_value' } })
+      
+      # Set up some secret cache entries (simulate KeySearcher secret caching)
+      manager.set('ENV-SECRET.test-env.prod.use1.secret1', 'secret_value1', is_secret: true)
+      manager.set('ENV-SECRET.test-env.prod.use1.secret2', 'secret_value2', is_secret: true)
+      manager.set('GROUP-SECRET.test-group.prod.use1.group_secret1', 'group_secret_value1', is_secret: true)
+      manager.set('GROUP-SECRET.test-group.prod.use1.group_secret2', 'group_secret_value2', is_secret: true)
+      
+      # Add some unrelated cache entries that should not be affected
+      manager.set('ENV-SECRET.other-env.prod.use1.secret1', 'other_secret_value', is_secret: true)
+      manager.set('GROUP-SECRET.other-group.prod.use1.secret1', 'other_group_secret', is_secret: true)
+    end
+
+    context 'when purging environment entries' do
+      it 'removes all cache entries related to the environment' do
+        # Verify entries exist before purging
+        expect(manager.get_entity_data(environment)).to be_truthy
+        expect(manager.get('ENV-SECRET.test-env.prod.use1.secret1')).to eq('secret_value1')
+        expect(manager.get('ENV-SECRET.test-env.prod.use1.secret2')).to eq('secret_value2')
+        
+        # Purge environment entries
+        result = manager.purge_entity(environment)
+        expect(result).to be true
+        
+        # Verify environment entries are removed
+        expect(manager.get_entity_data(environment)).to be_nil
+        expect(manager.get('ENV-SECRET.test-env.prod.use1.secret1')).to be_nil
+        expect(manager.get('ENV-SECRET.test-env.prod.use1.secret2')).to be_nil
+        
+        # Verify unrelated entries are not affected
+        expect(manager.get_entity_data(group)).to be_truthy
+        expect(manager.get('GROUP-SECRET.test-group.prod.use1.group_secret1')).to eq('group_secret_value1')
+        expect(manager.get('ENV-SECRET.other-env.prod.use1.secret1')).to eq('other_secret_value')
+      end
+    end
+
+    context 'when purging group entries' do
+      it 'removes all cache entries related to the group' do
+        # Verify entries exist before purging
+        expect(manager.get_entity_data(group)).to be_truthy
+        expect(manager.get('GROUP-SECRET.test-group.prod.use1.group_secret1')).to eq('group_secret_value1')
+        expect(manager.get('GROUP-SECRET.test-group.prod.use1.group_secret2')).to eq('group_secret_value2')
+        
+        # Purge group entries
+        result = manager.purge_entity(group)
+        expect(result).to be true
+        
+        # Verify group entries are removed
+        expect(manager.get_entity_data(group)).to be_nil
+        expect(manager.get('GROUP-SECRET.test-group.prod.use1.group_secret1')).to be_nil
+        expect(manager.get('GROUP-SECRET.test-group.prod.use1.group_secret2')).to be_nil
+        
+        # Verify unrelated entries are not affected
+        expect(manager.get_entity_data(environment)).to be_truthy
+        expect(manager.get('ENV-SECRET.test-env.prod.use1.secret1')).to eq('secret_value1')
+        expect(manager.get('GROUP-SECRET.other-group.prod.use1.secret1')).to eq('other_group_secret')
+      end
+    end
+
+    context 'when cache is disabled' do
+      let(:disabled_manager) { described_class.instance({ enabled: false }) }
+
+      it 'returns false for environment purge' do
+        result = disabled_manager.purge_entity(environment)
+        expect(result).to be false
+      end
+
+      it 'returns false for group purge' do
+        result = disabled_manager.purge_entity(group)
+        expect(result).to be false
+      end
+    end
+
+    context 'with invalid entity type' do
+      it 'raises ArgumentError for unsupported entity types' do
+        expect { manager.purge_entity("invalid") }.to raise_error(ArgumentError, /Unsupported entity type/)
+        expect { manager.purge_entity(123) }.to raise_error(ArgumentError, /Unsupported entity type/)
+      end
+    end
+  end
+
+  describe 'entity clear_cache methods' do
+    let(:manager) { described_class.instance(cache_config) }
+    let(:environment) { Lotus::Environment.new('test-env') }
+    let(:group) { Lotus::Group.new('test-group') }
+
+    it 'environment clear_cache calls purge_entity' do
+      allow(manager).to receive(:purge_entity).with(environment)
+      environment.clear_cache
+      expect(manager).to have_received(:purge_entity).with(environment)
+    end
+
+    it 'group clear_cache calls purge_entity' do
+      allow(manager).to receive(:purge_entity).with(group)
+      group.clear_cache
+      expect(manager).to have_received(:purge_entity).with(group)
+    end
+  end
 end

@@ -9,7 +9,7 @@ RSpec.describe Lotus::Group do
         'database_url' => 'postgres://localhost:5432/test',
         'api_token' => 'abc123'
       },
-      'secrets' => {
+      'group_secrets' => {
         'keys' => %w[secret_key api_secret]
       }
     }
@@ -27,79 +27,42 @@ RSpec.describe Lotus::Group do
   end
 
   describe '#initialize' do
-    context 'with yaml hash (legacy)' do
-      it 'stores the yaml hash data' do
-        group = Lotus::Group.new(yaml_hash)
-        expect(group.data).to eq(yaml_hash)
-      end
-
-      it 'sets application to default greenhouse' do
-        group = Lotus::Group.new(yaml_hash)
-        expect(group.application).to eq('greenhouse')
-      end
-
-      it 'accepts custom application' do
-        group = Lotus::Group.new(yaml_hash, application: 'custom-app')
-        expect(group.application).to eq('custom-app')
-      end
-
-      it 'accepts cache manager' do
-        group = Lotus::Group.new(yaml_hash, cache_manager: cache_manager)
-        expect(group.instance_variable_get(:@cache_manager)).to eq(cache_manager)
-      end
-    end
-
-    context 'with group name (new)' do
-      it 'stores the group name' do
-        group = Lotus::Group.new('test-group')
-        expect(group.name).to eq('test-group')
-        expect(group.data).to be_nil
-      end
-
-      it 'sets application to default greenhouse' do
-        group = Lotus::Group.new('test-group')
-        expect(group.application).to eq('greenhouse')
-      end
-
-      it 'accepts custom application' do
-        group = Lotus::Group.new('test-group', application: 'custom-app')
-        expect(group.application).to eq('custom-app')
-      end
-
-      it 'accepts cache manager' do
-        group = Lotus::Group.new('test-group', cache_manager: cache_manager)
-        expect(group.instance_variable_get(:@cache_manager)).to eq(cache_manager)
-      end
-    end
-  end
-
-  describe '.from_args' do
-    it 'creates group with specified name and application' do
-      group = described_class.from_args(group: 'test-group', application: 'custom-app')
+    it 'stores the group name' do
+      group = Lotus::Group.new('test-group')
       expect(group.name).to eq('test-group')
-      expect(group.application).to eq('custom-app')
-    end
-
-    it 'uses default greenhouse application' do
-      group = described_class.from_args(group: 'test-group')
+      expect(group.data).to be_nil
       expect(group.application).to eq('greenhouse')
     end
 
-    it 'accepts cache manager' do
-      group = described_class.from_args(group: 'test-group', cache_manager: cache_manager)
-      expect(group.instance_variable_get(:@cache_manager)).to eq(cache_manager)
+    it 'accepts custom application' do
+      group = Lotus::Group.new('test-group', application: 'custom-app')
+      expect(group.application).to eq('custom-app')
+    end
+
+    it 'accepts space and region parameters' do
+      group = Lotus::Group.new('test-group', space: 'prod', region: 'use1')
+      expect(group.space).to eq('prod')
+      expect(group.region).to eq('use1')
+    end
+
+    it 'accepts parent parameter' do
+      parent = double('EntitySet')
+      group = Lotus::Group.new('test-group', parent: parent)
+      expect(group.instance_variable_get(:@parent_entity)).to eq(parent)
     end
   end
 
   describe '#configs' do
     context 'with loaded data' do
       it 'returns the configs hash' do
-        group = Lotus::Group.new(yaml_hash)
+        group = Lotus::Group.new('test-group')
+        group.instance_variable_set(:@data, yaml_hash)
         expect(group.configs).to eq(yaml_hash['configs'])
       end
 
       it 'returns empty hash when configs is missing' do
-        group = Lotus::Group.new({})
+        group = Lotus::Group.new('test-group')
+        group.instance_variable_set(:@data, {})
         expect(group.configs).to eq({})
       end
     end
@@ -112,106 +75,96 @@ RSpec.describe Lotus::Group do
     end
   end
 
-  describe '#secrets' do
+  describe '#secret_keys' do
     context 'with loaded data' do
       it 'returns array of secret keys' do
-        group = Lotus::Group.new(yaml_hash)
-        expect(group.secrets).to eq(%w[secret_key api_secret])
+        group = Lotus::Group.new('test-group')
+        group.instance_variable_set(:@data, yaml_hash)
+        expect(group.secret_keys).to eq(%w[secret_key api_secret])
       end
 
       it 'returns empty array when secrets is missing' do
-        group = Lotus::Group.new({})
-        expect(group.secrets).to eq([])
+        group = Lotus::Group.new('test-group')
+        group.instance_variable_set(:@data, {})
+        expect(group.secret_keys).to eq([])
       end
 
       it 'returns empty array when secrets.keys is missing' do
-        group = Lotus::Group.new({ 'secrets' => {} })
-        expect(group.secrets).to eq([])
+        group = Lotus::Group.new('test-group')
+        group.instance_variable_set(:@data, { 'group_secrets' => {} })
+        expect(group.secret_keys).to eq([])
       end
 
       it 'handles non-array secrets.keys' do
-        group = Lotus::Group.new({ 'secrets' => { 'keys' => 'single_key' } })
-        expect(group.secrets).to eq(['single_key'])
+        group = Lotus::Group.new('test-group')
+        group.instance_variable_set(:@data, { 'group_secrets' => { 'keys' => 'single_key' } })
+        expect(group.secret_keys).to eq(['single_key'])
       end
     end
 
     context 'without loaded data' do
       it 'raises NoMethodError when data is nil' do
         group = Lotus::Group.new('test-group')
-        expect { group.secrets }.to raise_error(NoMethodError, /requires data to be loaded first/)
+        expect { group.secret_keys }.to raise_error(NoMethodError, /requires data to be loaded first/)
       end
     end
   end
 
-  describe '#fetch' do
-    let(:group) { Lotus::Group.new('test-group', cache_manager: cache_manager) }
-
-    context 'when data is already loaded' do
-      it 'returns existing data without fetching' do
+  describe '#secrets' do
+    context 'with loaded data' do
+      it 'returns array of Secret objects after instantiation' do
+        group = Lotus::Group.new('test-group')
         group.instance_variable_set(:@data, yaml_hash)
-        expect(Lotus::Runner).not_to receive(:fetch_group_yaml)
-        
-        result = group.fetch
-        expect(result).to eq(yaml_hash)
+        group.send(:instantiate_secrets)
+        expect(group.secrets).to be_an(Array)
+        expect(group.secrets.length).to eq(2)
+        expect(group.secrets.all? { |s| s.is_a?(Lotus::Secret) }).to be true
+        expect(group.secrets.map(&:name)).to contain_exactly('secret_key', 'api_secret')
+      end
+
+      it 'returns empty array when no secrets instantiated' do
+        group = Lotus::Group.new('test-group')
+        group.instance_variable_set(:@data, yaml_hash)
+        expect(group.secrets).to eq([])
       end
     end
 
-    context 'with cache manager' do
-      context 'cache hit' do
-        it 'returns cached data' do
-          expect(cache_manager).to receive(:get_group_data).with('test-group', 'greenhouse').and_return(yaml_hash)
-          expect(Lotus::Runner).not_to receive(:fetch_group_yaml)
-          
-          result = group.fetch
-          expect(result).to eq(yaml_hash)
-          expect(group.data).to eq(yaml_hash)
-        end
-      end
-
-      context 'cache miss' do
-        it 'fetches from lotus and caches result' do
-          expect(cache_manager).to receive(:get_group_data).with('test-group', 'greenhouse').and_return(nil)
-          expect(Lotus::Runner).to receive(:fetch_group_yaml).with(nil, 'test-group').and_return(yaml_hash)
-          expect(cache_manager).to receive(:set_group_data).with('test-group', 'greenhouse', yaml_hash)
-          
-          result = group.fetch
-          expect(result).to eq(yaml_hash)
-          expect(group.data).to eq(yaml_hash)
-        end
-
-        it 'returns nil when lotus fetch fails' do
-          expect(cache_manager).to receive(:get_group_data).with('test-group', 'greenhouse').and_return(nil)
-          expect(Lotus::Runner).to receive(:fetch_group_yaml).with(nil, 'test-group').and_return(nil)
-          expect(cache_manager).not_to receive(:set_group_data)
-          
-          result = group.fetch
-          expect(result).to be_nil
-          expect(group.data).to be_nil
-        end
+    context 'without loaded data' do
+      it 'returns empty array when data is nil' do
+        group = Lotus::Group.new('test-group')
+        expect(group.secrets).to eq([])
       end
     end
+  end
 
-    context 'without cache manager' do
-      let(:group) { 
-        require_relative '../../lib/lall/cli'
-        Lotus::Group.new('test-group', cache_manager: LallCLI::NullCacheManager.new) 
-      }
+  # Note: fetch method has been moved to Lotus::Runner - entities no longer have fetch method
+  # Data loading is handled through Lotus::Runner.fetch(entity) or EntitySet.fetch_all
 
-      it 'fetches from lotus directly and does not cache' do
-        expect(Lotus::Runner).to receive(:fetch_group_yaml).with(nil, 'test-group').and_return(yaml_hash)
-        
-        result = group.fetch
-        expect(result).to eq(yaml_hash)
-        expect(group.data).to eq(yaml_hash)
-      end
+  describe '#lotus_cmd' do
+    it 'constructs correct lotus command' do
+      group = Lotus::Group.new('test-group', space: 'prod', region: 'use1')
+      expected_cmd = 'lotus view -s prod -r use1 -a greenhouse -g test-group'
+      expect(group.lotus_cmd).to eq(expected_cmd)
+    end
 
-      it 'returns nil when lotus fetch fails' do
-        expect(Lotus::Runner).to receive(:fetch_group_yaml).with(nil, 'test-group').and_return(nil)
-        
-        result = group.fetch
-        expect(result).to be_nil
-        expect(group.data).to be_nil
-      end
+    it 'handles group without explicit space/region' do
+      group = Lotus::Group.new('test-group')
+      expected_cmd = 'lotus view -s  -r  -a greenhouse -g test-group'
+      expect(group.lotus_cmd).to eq(expected_cmd)
+    end
+  end
+
+  describe '#lotus_parse' do
+    let(:group) { Lotus::Group.new('test-group') }
+
+    it 'sets @data and instantiates secrets' do
+      group.lotus_parse(yaml_hash)
+      expect(group.data).to eq(yaml_hash)
+      expect(group.secrets).to be_an(Array)
+      # Should have instantiated secret objects for each key
+      expect(group.secrets.length).to eq(2)
+      expect(group.secrets.all? { |s| s.is_a?(Lotus::Secret) }).to be true
+      expect(group.secrets.map(&:name)).to contain_exactly('secret_key', 'api_secret')
     end
   end
 end

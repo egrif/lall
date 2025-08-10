@@ -2,9 +2,20 @@
 
 require 'spec_helper'
 require 'open3'
+require_relative '../lib/lall/cli'
 
 RSpec.describe 'Integration Tests', :integration do
   let(:lall_command) { File.expand_path('../bin/lall', __dir__) }
+
+  # Helper method to capture stdout for in-process CLI testing
+  def capture_stdout
+    original_stdout = $stdout
+    $stdout = StringIO.new
+    yield
+    $stdout.string
+  ensure
+    $stdout = original_stdout
+  end
 
   describe 'CLI executable' do
     it 'shows usage when no arguments provided' do
@@ -30,97 +41,182 @@ RSpec.describe 'Integration Tests', :integration do
   end
 
   describe 'Full workflow with mocked lotus commands' do
-    let(:mock_lotus_script) do
-      <<~SCRIPT
-        #!/bin/bash
-
-        if [[ "$1" == "ping" ]]; then
-          exit 0
-        elif [[ "$1" == "view" ]]; then
-          if [[ "$*" == *"-e \\\\test-env1"* ]]; then
-            cat << 'EOF'
-        group: test-group
-        configs:
-          database_url: postgres://localhost:5432/test1
-          api_token: token_123
-          timeout: 30
-        secrets:
-          keys:
-            - secret_key
-            - api_secret
-        EOF
-          elif [[ "$*" == *"-e \\\\test-env2"* ]]; then
-            cat << 'EOF'
-        group: test-group
-        configs:
-          database_url: postgres://localhost:5432/test2
-          api_token: token_456
-          timeout: 45
-        secrets:
-          keys:
-            - secret_key
-            - different_secret
-        EOF
-          fi
-        elif [[ "$1" == "secret" ]] && [[ "$2" == "get" ]]; then
-          echo "SECRET_KEY=actual_secret_value_$(date +%s)"
-        fi
-      SCRIPT
+    let(:mock_env1_data) do
+      {
+        'group' => 'test-group',
+        'configs' => {
+          'database_url' => 'postgres://localhost:5432/test1',
+          'api_token' => 'token_123',
+          'timeout' => 30
+        },
+        'secrets' => {
+          'keys' => ['secret_key', 'api_secret']
+        }
+      }
     end
 
-    let(:temp_lotus_path) { '/tmp/mock_lotus' }
+    let(:mock_env2_data) do
+      {
+        'group' => 'test-group',
+        'configs' => {
+          'database_url' => 'postgres://localhost:5432/test2',
+          'api_token' => 'token_456',
+          'timeout' => 45
+        },
+        'secrets' => {
+          'keys' => ['secret_key', 'different_secret']
+        }
+      }
+    end
+
+    let(:mock_group_data) do
+      {
+        'configs' => {
+          'shared_config' => 'shared_value'
+        },
+        'group_secrets' => {
+          'keys' => ['group_secret']
+        }
+      }
+    end
 
     before do
-      # Create mock lotus command
-      File.write(temp_lotus_path, mock_lotus_script)
-      File.chmod(0o755, temp_lotus_path)
+      # Mock cache manager to always return cache miss
+      allow(Lotus::Runner).to receive(:cache_manager).and_return(nil)
+      allow(Lotus::Runner).to receive(:cached_data_for_entity).and_return(nil)
 
-      # Temporarily modify PATH to use mock lotus
-      @original_path = ENV.fetch('PATH', nil)
-      ENV['PATH'] = "/tmp:#{ENV.fetch('PATH', nil)}"
+      # Mock Lotus::Runner.fetch for environments and secrets
+      allow(Lotus::Runner).to receive(:fetch) do |entity|
+        case entity.class.name
+        when 'Lotus::Environment'
+          case entity.name
+          when 'test-env1'
+            # Set the data and call instantiate_secrets
+            entity.instance_variable_set(:@data, mock_env1_data)
+            entity.send(:instantiate_secrets) if entity.respond_to?(:instantiate_secrets, true)
+            mock_env1_data
+          when 'test-env2'
+            # Set the data and call instantiate_secrets
+            entity.instance_variable_set(:@data, mock_env2_data)
+            entity.send(:instantiate_secrets) if entity.respond_to?(:instantiate_secrets, true)
+            mock_env2_data
+          else
+            nil
+          end
+        when 'Lotus::Group'
+          case entity.name
+          when 'test-group'
+            # Set the data and call instantiate_secrets
+            entity.instance_variable_set(:@data, mock_group_data)
+            entity.send(:instantiate_secrets) if entity.respond_to?(:instantiate_secrets, true)
+            mock_group_data
+          else
+            nil
+          end
+        when 'Lotus::Secret'
+          # Mock secret values for testing
+          secret_value = case entity.name
+                         when 'secret_key'
+                           'secret_value_123'
+                         when 'api_secret'
+                           'api_secret_456'
+                         when 'different_secret'
+                           'different_secret_789'
+                         when 'group_secret'
+                           'group_secret_value'
+                         else
+                           'default_secret_value'
+                         end
+          entity.instance_variable_set(:@data, secret_value)
+          secret_value
+        else
+          nil
+        end
+      end
+
+      # Keep the old fetch_yaml mock for backward compatibility
+      allow(Lotus::Runner).to receive(:fetch_yaml) do |entity|
+        case entity.name
+        when 'test-env1'
+          mock_env1_data
+        when 'test-env2'
+          mock_env2_data
+        when 'test-group'
+          mock_group_data
+        else
+          nil
+        end
+      end
+      
+      # Mock ping to always succeed
+      allow(Lotus::Runner).to receive(:ping).and_return(true)
     end
 
-    after do
-      ENV['PATH'] = @original_path
-      File.delete(temp_lotus_path) if File.exist?(temp_lotus_path)
+    it 'performs end-to-end search with table output' do
+      # Test CLI directly in-process instead of spawning separate process
+      cli = nil
+      output = capture_stdout do
+        begin
+          cli = LallCLI.new(['-s', 'api_token', '-e', 'test-env1,test-env2', '--no-cache'])
+          cli.run
+        rescue SystemExit => e
+          # Capture exit but continue test
+          @exit_code = e.status
+        end
+      end
+
+      expect(@exit_code).to be_nil  # Should not exit
+      expect(output).to include('api_token')
+      expect(output).to include('test-env1')
+      expect(output).to include('test-env2')
+      expect(output).to include('token_123')
+      expect(output).to include('token_456')
     end
 
-    xit 'performs end-to-end search with table output' do
-      # Skip this test in CI or when lotus is not available
-      skip 'Requires lotus command' unless system('which lotus > /dev/null 2>&1') || File.exist?(temp_lotus_path)
+    it 'handles wildcard searches' do
+      stdout = capture_stdout do
+        begin
+          cli = LallCLI.new(['-s', '*_token', '-e', 'test-env1', '--no-cache'])
+          cli.run
+        rescue SystemExit => e
+          @exit_code = e.status
+        end
+      end
 
-      stdout, _, status = Open3.capture3(
-        lall_command, '-s', 'api_token', '-e', 'test-env1,test-env2'
-      )
-
-      expect(status.exitstatus).to eq(0)
+      expect(@exit_code).to be_nil
       expect(stdout).to include('api_token')
-      expect(stdout).to include('test-env1')
-      expect(stdout).to include('test-env2')
-      expect(stdout).to include('token_123')
-      expect(stdout).to include('token_456')
     end
 
-    xit 'handles wildcard searches' do
-      skip 'Requires lotus command' unless system('which lotus > /dev/null 2>&1') || File.exist?(temp_lotus_path)
+    it 'exposes secrets when -x flag is used' do
+      output = capture_stdout do
+        begin
+          cli = LallCLI.new(['-s', 'secret_key', '-e', 'test-env1,test-env2', '--no-cache', '-x'])
+          cli.run
+        rescue SystemExit => e
+          @exit_code = e.status
+        end
+      end
 
-      stdout, _, status = Open3.capture3(
-        lall_command, '-s', '*_token', '-e', 'test-env1'
-      )
-
-      expect(status.exitstatus).to eq(0)
-      expect(stdout).to include('api_token')
+      expect(@exit_code).to be_nil
+      expect(output).to include('secret_key')
+      expect(output).to include('secret_value_123')  # The mocked secret value
+      expect(output).to include('test-env1')
+      expect(output).to include('test-env2')
     end
 
-    xit 'exposes secrets when -x flag is used' do
-      skip 'Requires lotus command' unless system('which lotus > /dev/null 2>&1') || File.exist?(temp_lotus_path)
+    it 'shows secret keys but not values when -x flag is not used' do
+      output = capture_stdout do
+        begin
+          cli = LallCLI.new(['-s', 'secret_key', '-e', 'test-env1', '--no-cache'])
+          cli.run
+        rescue SystemExit => e
+          @exit_code = e.status
+        end
+      end
 
-      stdout, _, status = Open3.capture3(
-        lall_command, '-s', 'secret_key', '-e', 'test-env1', '-x'
-      )
-
-      expect(status.exitstatus).to eq(0)
-      expect(stdout).to include('actual_secret_value')
+      expect(@exit_code).to be_nil
+      expect(output).to include('secret_key')
+      expect(output).not_to include('secret_value_123')  # Should not show actual secret value
     end
   end
 

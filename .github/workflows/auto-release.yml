@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   check-prerequisites:
@@ -200,6 +201,7 @@ jobs:
     needs: [check-prerequisites, check-version, build, create-tag-and-release]
     if: needs.check-version.outputs.should-proceed == 'true'
     runs-on: ubuntu-latest
+    continue-on-error: true  # Don't fail the workflow if GitHub Packages fails
     steps:
     - uses: actions/checkout@v4
 
@@ -230,7 +232,17 @@ jobs:
         chmod 0600 ~/.gem/credentials
 
     - name: Publish to GitHub Packages
+      env:
+        GEM_HOST_API_KEY: ${{ secrets.GITHUB_TOKEN }}
       run: |
         GEM_NAME=$(ls *.gem)
-        gem push --key github --host https://rubygems.pkg.github.com/${{ github.repository_owner }} $GEM_NAME
-        echo "Published $GEM_NAME to GitHub Packages"
+        echo "Publishing $GEM_NAME to GitHub Packages..."
+        
+        # Try to publish, but don't fail the workflow if it fails
+        if gem push --key github --host https://rubygems.pkg.github.com/${{ github.repository_owner }} $GEM_NAME; then
+          echo "Successfully published $GEM_NAME to GitHub Packages"
+        else
+          echo "Failed to publish to GitHub Packages, but continuing workflow"
+          echo "You can manually publish later or publish to RubyGems.org instead"
+          exit 0
+        fi

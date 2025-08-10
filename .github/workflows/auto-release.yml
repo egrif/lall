@@ -232,8 +232,6 @@ jobs:
         chmod 0600 ~/.gem/credentials
 
     - name: Publish to GitHub Packages
-      env:
-        GEM_HOST_API_KEY: ${{ secrets.GITHUB_TOKEN }}
       run: |
         GEM_NAME=$(ls *.gem)
         echo "Publishing $GEM_NAME to GitHub Packages..."

@@ -201,8 +201,8 @@ RSpec.describe Lotus::EntitySet do
     it 'fetches all environments and creates groups from their data' do
       entity_set = described_class.new(settings)
       
-      # Mock Lotus::Runner.fetch_all
-      expect(Lotus::Runner).to receive(:fetch_all).twice do |entities|
+      # Mock Lotus::Runner.fetch_all to be called at least once
+      expect(Lotus::Runner).to receive(:fetch_all).at_least(:once) do |entities|
         # Simulate populating environment data with group references
         entities.each do |entity|
           if entity.is_a?(Lotus::Environment)

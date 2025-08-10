@@ -177,33 +177,8 @@ RSpec.describe Lotus::Environment do
     end
   end
 
-  describe '#fetch' do
-    let(:env) { Lotus::Environment.new('prod') }
-    
-    let(:sample_env_data) do
-      {
-        'configs' => { 'api_url' => 'https://api.prod.com' },
-        'secrets' => { 'keys' => ['api_key', 'db_password'] },
-        'group' => 'prod-group'
-      }
-    end
-
-    it 'delegates to Lotus::Runner.fetch' do
-      expect(Lotus::Runner).to receive(:fetch).with(env).and_return(sample_env_data)
-      
-      result = env.fetch
-      expect(result).to eq(sample_env_data)
-    end
-
-    it 'returns cached data if already loaded' do
-      env.instance_variable_set(:@data, sample_env_data)
-      
-      expect(Lotus::Runner).not_to receive(:fetch)
-      result = env.fetch
-      
-      expect(result).to eq(sample_env_data)
-    end
-  end
+  # Note: fetch method has been moved to Lotus::Runner - entities no longer have fetch method
+  # Data loading is handled through Lotus::Runner.fetch(entity) or EntitySet.fetch_all
 
   describe '#lotus_cmd' do
     it 'constructs correct lotus command' do
@@ -229,116 +204,17 @@ RSpec.describe Lotus::Environment do
       }
     end
 
-    it 'returns the raw data as-is' do
-      result = env.lotus_parse(raw_data)
-      expect(result).to eq(raw_data)
+    it 'sets @data and instantiates secrets' do
+      env.lotus_parse(raw_data)
+      expect(env.data).to eq(raw_data)
+      expect(env.secrets).to be_an(Array)
+      # Should have instantiated secret objects for each key
+      expect(env.secrets.length).to eq(1)
+      expect(env.secrets.first).to be_a(Lotus::Secret)
+      expect(env.secrets.first.name).to eq('api_key')
     end
   end
 
-  describe '#fetch_secrets' do
-    let(:env) { Lotus::Environment.new('prod') }
-    
-    before do
-      # Set up environment with sample data including secret keys
-      env.instance_variable_set(:@data, {
-        'secrets' => { 'keys' => ['DB_PASSWORD', 'API_KEY', 'SOLR_URL', 'REDIS_PASSWORD'] },
-        'group_secrets' => { 'keys' => ['SHARED_SECRET', 'SOLR_HOST'] },
-        'group' => 'prod-group'
-      })
-    end
-
-    it 'raises error when data is not loaded' do
-      empty_env = Lotus::Environment.new('test')
-      expect { empty_env.fetch_secrets('*') }.to raise_error(NoMethodError, /requires data to be loaded first/)
-    end
-
-    it 'finds and fetches matching environment secrets' do
-      # Mock Lotus::Runner.fetch_all
-      expect(Lotus::Runner).to receive(:fetch_all) do |secret_entities|
-        # Should find both SOLR_URL (environment) and SOLR_HOST (group)
-        expect(secret_entities.length).to eq(2)
-        names = secret_entities.map(&:name)
-        expect(names).to contain_exactly('SOLR_URL', 'SOLR_HOST')
-        secret_entities
-      end
-
-      secrets = env.fetch_secrets('*SOLR*')
-      
-      expect(secrets.length).to eq(2)
-      expect(secrets.all? { |s| s.is_a?(Lotus::Secret) }).to be true
-      expect(env.secrets).to eq(secrets)
-    end
-
-    it 'finds secrets with environment-only pattern' do
-      # Mock Lotus::Runner.fetch_all
-      expect(Lotus::Runner).to receive(:fetch_all) do |secret_entities|
-        expect(secret_entities.length).to eq(1)
-        expect(secret_entities.first.name).to eq('API_KEY')
-        secret_entities
-      end
-
-      secrets = env.fetch_secrets('API_*')
-      
-      expect(secrets.length).to eq(1)
-      expect(secrets.first.name).to eq('API_KEY')
-    end
-
-    it 'finds secrets with group-only pattern' do
-      # Mock Lotus::Runner.fetch_all
-      expect(Lotus::Runner).to receive(:fetch_all) do |secret_entities|
-        expect(secret_entities.length).to eq(1)
-        expect(secret_entities.first.name).to eq('SHARED_SECRET')
-        secret_entities
-      end
-
-      secrets = env.fetch_secrets('SHARED_*')
-      
-      expect(secrets.length).to eq(1)
-      expect(secrets.first.name).to eq('SHARED_SECRET')
-    end
-
-    it 'finds secrets from both environment and group sources' do
-      # Mock Lotus::Runner.fetch_all
-      expect(Lotus::Runner).to receive(:fetch_all) do |secret_entities|
-        expect(secret_entities.length).to eq(2)
-        names = secret_entities.map(&:name)
-        expect(names).to contain_exactly('SOLR_URL', 'SOLR_HOST')
-        secret_entities
-      end
-
-      secrets = env.fetch_secrets('*SOLR*')
-      expect(secrets.length).to eq(2)
-    end
-
-    it 'returns empty array when no secrets match pattern' do
-      secrets = env.fetch_secrets('*NONEXISTENT*')
-      expect(secrets).to eq([])
-      expect(env.secrets).to eq([])
-    end
-
-    it 'supports different glob patterns' do
-      # Test *_PASSWORD pattern
-      expect(Lotus::Runner).to receive(:fetch_all) do |secret_entities|
-        names = secret_entities.map(&:name)
-        expect(names).to contain_exactly('DB_PASSWORD', 'REDIS_PASSWORD')
-        secret_entities
-      end
-
-      secrets = env.fetch_secrets('*_PASSWORD')
-      expect(secrets.length).to eq(2)
-    end
-
-    it 'is case insensitive' do
-      expect(Lotus::Runner).to receive(:fetch_all) do |secret_entities|
-        # Should find both SOLR_URL and SOLR_HOST (case insensitive)
-        expect(secret_entities.length).to eq(2)
-        names = secret_entities.map(&:name)
-        expect(names).to contain_exactly('SOLR_URL', 'SOLR_HOST')
-        secret_entities
-      end
-
-      secrets = env.fetch_secrets('*solr*')
-      expect(secrets.length).to eq(2)
-    end
-  end
+  # Note: fetch_secrets method has been eliminated
+  # Secret fetching is now handled through EntitySet.fetch_all and Entity.matched_secrets
 end

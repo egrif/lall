@@ -74,7 +74,7 @@ RSpec.describe 'Integration Tests', :integration do
         'configs' => {
           'shared_config' => 'shared_value'
         },
-        'secrets' => {
+        'group_secrets' => {
           'keys' => ['group_secret']
         }
       }

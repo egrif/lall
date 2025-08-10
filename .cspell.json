@@ -69,7 +69,11 @@
     "binread",
     "binwrite",
     "tmpdir",
-    "mktmpdir"
+    "mktmpdir",
+    "grps",
+    "fnmatch",
+    "CASEFOLD",
+    "kwargs"
   ],
   "ignorePaths": [
     "node_modules/**",

@@ -24,6 +24,7 @@ Metrics/MethodLength:
   Exclude:
     - 'lib/lall/cli.rb'
     - 'lib/lall/table_formatter.rb'
+    - 'lib/lotus/runner.rb'
 
 # Allow longer classes for main CLI and table formatter
 Metrics/ClassLength:
@@ -49,7 +50,8 @@ Metrics/AbcSize:
   Max: 25
   Exclude:
     - 'lib/lall/table_formatter.rb'
-    - 'lib/lall/key_searcher.rb'
+    - 'lib/lall/cli.rb'
+    - 'lib/lotus/runner.rb'
 
 # Allow more parameters for table formatting and search methods
 Metrics/ParameterLists:

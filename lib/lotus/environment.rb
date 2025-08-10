@@ -1,49 +1,17 @@
 # frozen_string_literal: true
 
-require_relative 'entity'
+require_relative 'not_secret'
 
 module Lotus
-  class Environment < Entity
+  class Environment < NotSecret
     attr_reader :group, :secrets
-
-    def initialize(*args, **kwargs)
-      super
-      @secrets = []
-    end
-
-    # Backward compatibility: entity_set should return the parent EntitySet
-    def entity_set
-      @parent_entity
-    end
-
-    # Allow setting entity_set for backward compatibility
-    def entity_set=(value)
-      @parent_entity = value
-    end
-
-    # attributes from data
-    def configs
-      raise NoMethodError, 'undefined method `configs` - requires data to be loaded first' if @data.nil?
-
-      @data['configs'] || {}
-    end
-
-    def secret_keys
-      raise NoMethodError, 'undefined method `secret_keys` - requires data to be loaded first' if @data.nil?
-
-      Array(@data.dig('secrets', 'keys'))
-    end
-
-    def group_secret_keys
-      raise NoMethodError, 'undefined method `group_secret_keys` - requires data to be loaded first' if @data.nil?
-
-      Array(@data.dig('group_secrets', 'keys'))
-    end
 
     def group_name
       raise NoMethodError, 'undefined method `group_name` - requires data to be loaded first' if @data.nil?
 
-      @data&.dig('group')
+      return nil unless @data.is_a?(Hash)
+
+      @data['group']
     end
 
     # Environment defaults
@@ -73,22 +41,11 @@ module Lotus
       "lotus view -s #{space} -r #{region} -e #{@name} -a #{@application} -G"
     end
 
-    private
-
-    def find_matching_secret_keys(pattern)
-      matching_keys = []
-
-      # Convert glob pattern to regex
-      regex_pattern = glob_to_regex(pattern)
-
-      # Check environment secret keys
-      secret_keys.each do |key|
-        matching_keys << { key: key, source_entity: self } if key.match?(regex_pattern)
-      end
-
-
-      matching_keys
+    def key_to_secrets
+      'secrets'
     end
+
+    private
 
     def group_entity
       # Try to get the group entity from the parent EntitySet
@@ -98,16 +55,6 @@ module Lotus
       return nil unless group_name
 
       @parent_entity.groups.find { |group| group.name == group_name }
-    end
-
-    def glob_to_regex(pattern)
-      # Convert shell glob pattern to regex
-      # * matches any characters
-      # ? matches any single character
-      escaped = Regexp.escape(pattern)
-      escaped.gsub!('\*', '.*')
-      escaped.gsub!('\?', '.')
-      /^#{escaped}$/i
     end
   end
 end

@@ -49,3 +49,14 @@ cache:
 output:
   # Placeholder text shown for secret values when not exposing secrets (default: '{SECRET}')
   secret_placeholder: '{SECRET}'
+  
+  # Color settings for table output
+  colors:
+    # Environment-only value (no group value present)
+    from_env: white
+    # Group value with no environment override
+    from_group: blue
+    # Environment overrides group value (different from group)
+    env_changes_group: yellow
+    # Environment matches group value (same as group)
+    env_mirrors_group: green

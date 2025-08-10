@@ -4,18 +4,23 @@
 class TableFormatter
   # ANSI color codes
   COLORS = {
-    white: "\e[37m",    # Environment value only
-    yellow: "\e[33m",   # Environment overrides group
-    green: "\e[32m",    # Group value, no override
-    blue: "\e[34m",     # Group value same as override
-    reset: "\e[0m"      # Reset color
+    white: "\e[37m",
+    yellow: "\e[33m",
+    green: "\e[32m",
+    blue: "\e[34m",
+    red: "\e[31m",
+    cyan: "\e[36m",
+    magenta: "\e[35m",
+    black: "\e[30m",
+    reset: "\e[0m"
   }.freeze
 
-  def initialize(columns, envs, env_results, options)
+  def initialize(columns, envs, env_results, options, settings = nil)
     @columns = columns
     @envs = envs
     @env_results = env_results
     @options = options
+    @settings = settings
     @truncate = options[:truncate]
     @path_also = options[:path_also]
     @env_width = ['Env'.length, *envs.map(&:length)].max
@@ -24,7 +29,17 @@ class TableFormatter
   def colorize_value(value_str, color_type)
     return value_str if color_type.nil? || !$stdout.tty?
 
-    "#{COLORS[color_type]}#{value_str}#{COLORS[:reset]}"
+    # Get color name from settings if available, fallback to hardcoded mapping
+    color_name = if @settings
+                   @settings.get("output.colors.#{color_type}", color_type)
+                 else
+                   color_type
+                 end
+
+    # Convert color name to symbol if it's a string
+    color_name = color_name.to_sym if color_name.is_a?(String)
+
+    "#{COLORS[color_name]}#{value_str}#{COLORS[:reset]}"
   end
 
   def calculate_display_width(text)

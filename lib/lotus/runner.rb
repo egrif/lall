@@ -10,20 +10,22 @@ module Lotus
 
     def self.fetch(entity)
       start_time = Time.now if DEBUG_MODE
-      
+
       # Check cache first based on entity type
       cache_manager = self.cache_manager
       cached_data = cached_data_for_entity(entity, cache_manager)
       if cached_data
-        parsed_data = entity.lotus_parse(cached_data)
-        return
+        entity.lotus_parse(cached_data)
+        if DEBUG_MODE
+          elapsed = Time.now - start_time
+          puts "DEBUG: #{entity.lotus_type} '#{entity.name}' - loaded from cache in #{elapsed.round(3)}s"
+        end
+        return cached_data
       end
 
       # Cache miss - fetch from lotus using existing methods for backward compatibility
-      if DEBUG_MODE
-        puts "DEBUG: #{entity.class.name.split('::').last} '#{entity.name}' - cache miss, fetching from lotus..."
-      end
-      
+      puts "DEBUG: #{entity.lotus_type} '#{entity.name}' - cache miss, fetching from lotus..." if DEBUG_MODE
+
       fetch_start_time = Time.now if DEBUG_MODE
       raw_data = fetch_yaml(entity)
       fetch_end_time = Time.now if DEBUG_MODE
@@ -31,26 +33,27 @@ module Lotus
       return nil unless raw_data
 
       # Let the entity parse the data
-      parsed_data = entity.lotus_parse(raw_data)
+      entity.lotus_parse(raw_data)
 
-      # Cache the result
-      set_cached_data_for_entity(entity, cache_manager, parsed_data)
+      # Cache the raw data, not the parsed result
+      set_cached_data_for_entity(entity, cache_manager, raw_data)
 
       if DEBUG_MODE
         total_elapsed = Time.now - start_time
         fetch_elapsed = fetch_end_time - fetch_start_time
-        puts "DEBUG: #{entity.class.name.split('::').last} '#{entity.name}' - fetched from lotus in #{fetch_elapsed.round(3)}s, total time #{total_elapsed.round(3)}s"
+        entity_type = entity.class.name.split('::').last
+        fetch_time = fetch_elapsed.round(3)
+        total_time = total_elapsed.round(3)
+        puts "DEBUG: #{entity_type} '#{entity.name}' - fetched from lotus in #{fetch_time}s, total time #{total_time}s"
       end
 
-      parsed_data
+      raw_data
     end
 
     def self.fetch_all(entities)
       return [] if entities.empty?
 
-      if DEBUG_MODE
-        puts "DEBUG: Fetching #{entities.map(&:name).join(', ')} in parallel..."
-      end
+      puts "DEBUG: Fetching #{entities.map(&:name).join(', ')} in parallel..." if DEBUG_MODE
 
       # Use threading to fetch all entities in parallel
       threads = entities.map do |entity|
@@ -66,17 +69,15 @@ module Lotus
       entities
     end
 
-    def self.should_instantiate_secrets?(entity)
+    def self.should_instantiate_secrets?(_entity)
       # Secrets are now instantiated on-demand during search, not automatically
       false
     end
 
     def self.fetch_yaml(entity)
       lotus_cmd = entity.lotus_cmd
-      if DEBUG_MODE
-        puts "DEBUG: Executing: #{lotus_cmd}"
-      end
-      
+      puts "DEBUG: Executing: #{lotus_cmd}" if DEBUG_MODE
+
       yaml_output = nil
       Open3.popen3(lotus_cmd) do |_stdin, stdout, stderr, wait_thr|
         yaml_output = stdout.read
@@ -85,11 +86,9 @@ module Lotus
           return nil
         end
       end
-      
-      if DEBUG_MODE
-        puts "DEBUG: Lotus command completed successfully, parsing YAML..."
-      end
-      
+
+      puts 'DEBUG: Lotus command completed successfully, parsing YAML...' if DEBUG_MODE
+
       YAML.safe_load(yaml_output)
     end
 
@@ -119,7 +118,7 @@ module Lotus
                     when 'Lotus::Secret'
                       true
                     when 'Lotus::Environment', 'Lotus::Group'
-                      data.key?('secrets') || data.key?('group_secrets')
+                      data.is_a?(Hash) && (data.key?('secrets') || data.key?('group_secrets'))
                     else
                       false
                     end

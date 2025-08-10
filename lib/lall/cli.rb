@@ -165,10 +165,10 @@ class LallCLI
     entity_set.environments.each do |env|
       # Skip environments that failed to load data
       next unless env.data
-      
+
       # Build search data in the format expected by KeySearcher
       search_data = build_search_data_for_entity(env, entity_set)
-      
+
       # Perform search using the constructed search data
       result = perform_search(search_data, env.name)
       env_results[env.name] = result
@@ -179,15 +179,13 @@ class LallCLI
 
   def build_search_data_for_entity(env, entity_set)
     search_data = {}
-    
+
     # Skip if environment data failed to load
     return search_data unless env.data
-    
+
     # Add configs from environment
-    if env.configs
-      search_data['configs'] = env.configs
-    end
-    
+    search_data['configs'] = env.configs if env.configs
+
     # Add secrets from environment (if expose is enabled, fetch secret values)
     if env.secrets && !env.secrets.empty?
       search_data['secrets'] = {}
@@ -197,38 +195,41 @@ class LallCLI
           search_data['secrets'][secret.name] = secret.data
         end
         # Also maintain the keys array for KeySearcher compatibility
-        search_data['secrets']['keys'] = env.secrets.map(&:name)
-      else
-        # Just store the secret keys for pattern matching
-        search_data['secrets']['keys'] = env.secrets.map(&:name)
       end
+      # Just store the secret keys for pattern matching
+      search_data['secrets']['keys'] = env.secrets.map(&:name)
     end
-    
+
     # Add group secrets (find the group for this environment)
     if env.group_name
       group = entity_set.groups.find { |g| g.name == env.group_name }
-      if group && group.data # Check if group data was successfully loaded
-        begin
-          group_secrets = group.secrets
-          if group_secrets && !group_secrets.empty?
-            search_data['group_secrets'] = {}
-            if @options[:expose]
-              # Get group secret values from the instantiated secret objects
-              group_secrets.each do |secret|
-                search_data['group_secrets'][secret.name] = secret.data
-              end
-            else
-              # Just store the group secret keys for pattern matching
-              search_data['group_secrets']['keys'] = group_secrets.map(&:name)
-            end
-          end
-        rescue NoMethodError
-          # Group data failed to load, skip group secrets
-        end
-      end
+      add_group_data_to_search_data(search_data, group) if group&.data
     end
-    
+
     search_data
+  end
+
+  def add_group_data_to_search_data(search_data, group)
+    # Add group configs for color comparison
+    group_configs = group.configs
+    search_data['group_configs'] = group_configs if group_configs && !group_configs.empty?
+
+    # Add group secrets
+    group_secrets = group.secrets
+    return unless group_secrets && !group_secrets.empty?
+
+    search_data['group_secrets'] = {}
+    if @options[:expose]
+      # Get group secret values from the instantiated secret objects
+      group_secrets.each do |secret|
+        search_data['group_secrets'][secret.name] = secret.data
+      end
+    else
+      # Just store the group secret keys for pattern matching
+      search_data['group_secrets']['keys'] = group_secrets.map(&:name)
+    end
+  rescue NoMethodError
+    # Group data failed to load, skip group data
   end
 
   def resolve_core_options(resolved)
@@ -418,9 +419,10 @@ class LallCLI
     if @options[:pivot]
       display_pivot_table(envs, env_results, all_keys, all_paths)
     elsif @options[:path_also]
-      TableFormatter.new([], envs, env_results, @options).print_path_table(all_paths, all_keys, envs, env_results)
+      TableFormatter.new([], envs, env_results, @options, @settings).print_path_table(all_paths, all_keys, envs,
+                                                                                      env_results)
     else
-      TableFormatter.new([], envs, env_results, @options).print_key_table(all_keys, envs, env_results)
+      TableFormatter.new([], envs, env_results, @options, @settings).print_key_table(all_keys, envs, env_results)
     end
   end
 
@@ -430,51 +432,97 @@ class LallCLI
               else
                 all_keys
               end
-    TableFormatter.new(columns, envs, env_results, @options).print_table
+    TableFormatter.new(columns, envs, env_results, @options, @settings).print_table
   end
 
-  def perform_search(search_data, env)
+  def perform_search(search_data, _env)
     # Simple search that just shows secret placeholder for secrets instead of KeySearcher
     results = []
     pattern = @options[:string]
-    
-    # Search configs
-    if search_data['configs']
-      search_data['configs'].each do |key, value|
-        if key_matches_pattern?(key, pattern)
-          results << { path: 'configs', key: key, value: value, color: :white }
-        end
-      end
+
+    # Search configs with intelligent coloring
+    search_data['configs']&.each do |key, value|
+      next unless key_matches_pattern?(key, pattern)
+
+      # Determine color based on whether this value exists in group configs
+      color = determine_config_color(key, value, search_data)
+      results << { path: 'configs', key: key, value: value, color: color }
     end
-    
-    # Search secrets - show placeholder unless exposing
+
+    # Search secrets - show actual values if exposing, otherwise show placeholder
     if search_data['secrets'] && search_data['secrets']['keys']
       search_data['secrets']['keys'].each do |secret_key|
-        if key_matches_pattern?(secret_key, pattern)
-          value = @options[:expose] ? '[ACTUAL SECRET]' : @settings.output_settings[:secret_placeholder]
-          results << { path: 'secrets', key: secret_key, value: value, color: :white }
-        end
+        next unless key_matches_pattern?(secret_key, pattern)
+
+        value = if @options[:expose] && search_data['secrets'][secret_key]
+                  search_data['secrets'][secret_key]
+                else
+                  @settings.get('output.secret_placeholder', '{SECRET}')
+                end
+        color = @settings.get('output.colors.from_env', :white)
+        results << { path: 'secrets', key: secret_key, value: value, color: color }
       end
     end
-    
-    # Search group secrets - show placeholder unless exposing  
+
+    # Search group secrets - show actual values if exposing, otherwise show placeholder
     if search_data['group_secrets'] && search_data['group_secrets']['keys']
       search_data['group_secrets']['keys'].each do |secret_key|
-        if key_matches_pattern?(secret_key, pattern)
-          value = @options[:expose] ? '[ACTUAL GROUP SECRET]' : @settings.output_settings[:secret_placeholder]
-          results << { path: 'group_secrets', key: secret_key, value: value, color: :green }
-        end
+        next unless key_matches_pattern?(secret_key, pattern)
+
+        value = if @options[:expose] && search_data['group_secrets'][secret_key]
+                  search_data['group_secrets'][secret_key]
+                else
+                  @settings.get('output.secret_placeholder', '{SECRET}')
+                end
+        color = @settings.get('output.colors.from_group', :green)
+        results << { path: 'group_secrets', key: secret_key, value: value, color: color }
       end
     end
-    
+
     results
+  end
+
+  # Determine the appropriate color for a config value based on group comparison
+  def determine_config_color(key, env_value, search_data)
+    # Check if there's a corresponding group config value
+    group_configs = search_data['group_configs']
+    return @settings.get('output.colors.from_env', :white) unless group_configs
+
+    group_value = group_configs[key]
+    return @settings.get('output.colors.from_env', :white) unless group_value
+
+    # Compare environment value with group value
+    if env_value == group_value
+      @settings.get('output.colors.env_mirrors_group', :blue)
+    else
+      @settings.get('output.colors.env_changes_group', :yellow)
+    end
   end
 
   def key_matches_pattern?(key, pattern)
     # Handle wildcard patterns
     if pattern.include?('*')
-      # Convert glob pattern to regex
-      regex_pattern = pattern.gsub('*', '.*')
+      # Convert glob pattern to regex with proper anchoring
+      # * at the beginning means "ends with"
+      # * at the end means "starts with"
+      # * in the middle means "contains with wildcard"
+      if pattern.start_with?('*') && pattern.end_with?('*')
+        # *pattern* - contains
+        inner_pattern = pattern[1..-2]
+        regex_pattern = ".*#{Regexp.escape(inner_pattern)}.*"
+      elsif pattern.start_with?('*')
+        # *pattern - ends with
+        suffix_pattern = pattern[1..]
+        regex_pattern = ".*#{Regexp.escape(suffix_pattern)}$"
+      elsif pattern.end_with?('*')
+        # pattern* - starts with
+        prefix_pattern = pattern[0..-2]
+        regex_pattern = "^#{Regexp.escape(prefix_pattern)}.*"
+      else
+        # pattern with * in middle - convert to regex
+        regex_pattern = pattern.split('*').map { |part| Regexp.escape(part) }.join('.*')
+        regex_pattern = "^#{regex_pattern}$"
+      end
       key.match?(/#{regex_pattern}/i)
     else
       # Simple substring match

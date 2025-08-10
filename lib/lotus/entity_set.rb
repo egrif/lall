@@ -56,10 +56,11 @@ module Lotus
       @entities
     end
 
+    # rubocop:disable Metrics/AbcSize
     def fetch_all(pattern = nil)
       # Get pattern from settings if not provided
-      pattern ||= get_search_pattern_from_settings
-      
+      pattern ||= search_pattern_from_settings
+
       # First, instantiate and fetch all environments in parallel
       require_relative 'runner'
       envs = environments
@@ -68,19 +69,25 @@ module Lotus
 
       # Then, get group names from the fetched environments and instantiate groups
       grps = instantiate_groups_from_environments(environments)
-      Lotus::Runner.fetch_all(groups) unless groups.empty?
-
+      if @settings&.instance_variable_get(:@cli_options)&.dig(:debug)
+        puts "DEBUG: Instantiated #{grps.size} groups from environments"
+      end
+      Lotus::Runner.fetch_all(grps) unless grps.empty?
       # Store both environments and groups in entities
       @entities = envs + grps
 
       @entities.each do |entity|
         # If a search pattern is provided, filter secrets for each entity
         secrets = entity.matched_secrets(pattern)
+        if @settings&.instance_variable_get(:@cli_options)&.dig(:debug) && pattern
+          puts "DEBUG: #{entity.lotus_type} #{entity.name} matched #{secrets.size} secrets with pattern '#{pattern}'"
+        end
         Lotus::Runner.fetch_all(secrets) unless secrets.empty?
       end
       # Return self for method chaining
       self
     end
+    # rubocop:enable Metrics/AbcSize
 
     # Get environments from the entity set
     def environments
@@ -131,9 +138,9 @@ module Lotus
 
     private
 
-    def get_search_pattern_from_settings
+    def search_pattern_from_settings
       return nil unless @settings
-      
+
       # Get the search string from CLI options stored in settings
       cli_options = @settings.instance_variable_get(:@cli_options) || {}
       cli_options[:string]

@@ -1,0 +1,7 @@
+# Test settings file with different colors
+output:
+  colors:
+    from_env: red
+    from_group: cyan
+    env_changes_group: magenta
+    env_mirrors_group: yellow

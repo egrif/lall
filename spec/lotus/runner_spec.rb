@@ -60,7 +60,7 @@ RSpec.describe Lotus::Runner do
       
       result = Lotus::Runner.fetch(mock_environment)
       expect(result).to eq(cached_data)
-      expect(mock_environment).to have_received(:instance_variable_set).with(:@data, cached_data)
+      expect(mock_environment).to have_received(:lotus_parse).with(cached_data)
     end
 
     it 'fetches and parses data on cache miss' do

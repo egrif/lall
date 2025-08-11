@@ -73,7 +73,8 @@
     "grps",
     "fnmatch",
     "CASEFOLD",
-    "kwargs"
+    "kwargs",
+    "SIDEKIQ"
   ],
   "ignorePaths": [
     "node_modules/**",

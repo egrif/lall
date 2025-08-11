@@ -68,7 +68,7 @@ A Ruby CLI tool for comparing YAML configuration values across multiple environm
 # Give at least read_packages scope to the token (Settings | Developer Settings | Personal Access Tokens | Tokens (classic)
 bundle config https://rubygems.pkg.github.com/egrif GITHUB_USERNAME:TOKEN
 
-# If the `gem install` command below doesnt find the gem, then Configure gem source
+# If the `gem install` command below doesn't find the gem, then Configure gem source
 gem sources --add https://rubygems.pkg.github.com/egrif
 
 # Install the gem

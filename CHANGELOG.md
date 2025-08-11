@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Settings overview command**: New `--show-settings` option displays comprehensive view of all resolved settings
+  - Shows search options, output options, color settings, cache configuration
+  - Displays available environment groups
+  - Includes settings resolution priority information
+
 ## [0.9.0] - 2025-08-10
 
 ### Added

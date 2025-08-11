@@ -125,6 +125,7 @@ lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
 | | `--clear-cache` | Clear cache entries with matching prefix and exit | |
 | | `--cache-stats` | Show cache statistics and exit | |
 | | `--debug-settings` | Show settings resolution and exit | |
+| | `--show-settings` | Show all resolved settings and exit | |
 | | `--init-settings` | Initialize user settings file and exit | |
 
 ### Environment Groups
@@ -277,6 +278,9 @@ lall --init-settings
 # View how settings are resolved
 lall --debug-settings
 
+# Show all current settings in a comprehensive view
+lall --show-settings
+
 # Use environment variable defaults
 export LALL_CACHE_TTL=7200
 export LALL_DEBUG=true
@@ -412,6 +416,18 @@ lall --debug-settings
 ```
 
 This shows the current values and where they came from.
+
+Use `--show-settings` to see all resolved settings in a comprehensive view:
+
+```bash
+lall --show-settings
+```
+
+This displays:
+- All search, output, and color options with their current values
+- Cache configuration and status
+- Available environment groups
+- Settings resolution priority information
 
 ### Environment Groups
 

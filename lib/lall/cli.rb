@@ -597,7 +597,10 @@ class LallCLI
     puts "Invalid pattern '#{pattern}': #{e.message}"
     false
   rescue StandardError => e
-    puts "Error matching key '#{key}' with pattern '#{pattern}': #{e.message}"
+    warn "Invalid pattern '#{pattern}': #{e.message}"
+    false
+  rescue StandardError => e
+    warn "Error matching key '#{key}' with pattern '#{pattern}': #{e.message}"
     false
   end
 end

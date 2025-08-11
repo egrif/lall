@@ -6,13 +6,12 @@ Lall is a Ruby CLI tool for comparing YAML configuration values across multiple 
 
 ## Architecture
 
-**Core Flow**: CLI → Settings Resolution → Lotus Commands → YAML Search → Result Formatting
-- `LallCLI` - Main entry point and argument processing
+**Core Flow**: CLI → Settings Resolution → Lotus Commands → Entity-based Search → Result Formatting
+- `LallCLI` - Main entry point, argument processing, and entity-based search
 - `Lotus::Runner` - External lotus command wrapper with regional argument logic
-- `KeySearcher` - YAML traversal with flat key-value structure (no nesting)
 - `CacheManager` - Redis/Moneta dual backend with AES-256-GCM encryption
 - `SettingsManager` - 4-tier priority: CLI → ENV → User → Gem defaults
-- `TableFormatter` - Output formatting with pivot table support
+- `TableFormatter` - Output formatting with pivot table support and configurable colors
 - `Lotus::Environment` - Represents a LOTUS environment with name, space, region, and application. should encapsulate the environment data and operations
 - `Lotus::Group` - Represents Lotus group definitions and values
 - `Lotus::EntitySet` - Represents the set of environments we are operating on and any Louts groups they are members of.  Should encapsulate group operations
@@ -57,7 +56,7 @@ threads.each(&:join)
 ```
 
 ### YAML Data Structure (Simplified)
-KeySearcher expects **flat structures only** - no nested traversal:
+Entity-based search within CLI expects **flat structures only** - no nested traversal:
 ```yaml
 configs:
   key: "value"  # Flat key-value pairs
@@ -69,7 +68,7 @@ group_secrets:
 **Note:** actual examples of YAML data (environment.yam and group.yaml) might be found in the `tmp/reference` directory
 **Note:** the group name is stored in the `group` key of the environment yaml file
 
-Search methods target specific sections: `search_configs_section()`, `search_secrets_section()`, etc.
+Search methods within CLI target specific sections: `build_search_data_for_entity()`, `perform_search()`, etc.
 
 ### Settings Priority System
 **Always use SettingsManager** - never direct ENV or config access:
@@ -166,7 +165,7 @@ return nil unless yaml_data
 ### Method Naming
 - `fetch_env_yaml()` - fetches environment-specific YAML
 - `fetch_group_yaml()` - fetches group-specific YAML  
-- Use `_section` suffix for KeySearcher methods: `search_configs_section()`
+- Use descriptive names for CLI search methods: `build_search_data_for_entity()`, `perform_search()`
 
 ### Threading Safety
 Use mutex for shared result aggregation:
@@ -178,10 +177,10 @@ mutex.synchronize { results[key] = value }
 ```
 
 ### Color Coding System
-KeySearcher applies semantic colors:
-- `:blue` - Environment matches group value
-- `:yellow` - Environment overrides group value
-- `:green` - Group value with no environment override
+CLI applies semantic colors via determine_config_color():
+- `:blue` - Group value with no environment override
+- `:yellow` - Environment overrides group value (values differ)
+- `:green` - Environment matches group value (values same)
 - `:white` - Environment-only value
 
 ## External Dependencies

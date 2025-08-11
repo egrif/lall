@@ -26,7 +26,7 @@ This project adheres to a code of conduct that fosters an inclusive and respectf
 
 ### Prerequisites
 
-- Ruby 2.7 or higher
+- Ruby 3.1 or higher
 - Bundler gem manager
 - Git version control
 - Access to lotus CLI (for integration testing)
@@ -255,7 +255,7 @@ Use clear, descriptive commit messages:
 ```
 Add wildcard support for secret key patterns
 
-- Implement wildcard matching in KeySearcher.match_key?
+- Implement wildcard matching in CLI.key_matches_pattern?
 - Add comprehensive tests for pattern matching
 - Update documentation with wildcard examples
 
@@ -323,8 +323,8 @@ When adding new features, consider:
 
 For changes to core classes:
 
-- **LallCLI**: Focus on argument parsing and workflow orchestration
-- **KeySearcher**: Maintain pattern matching efficiency and thread safety
+- **LallCLI**: Focus on argument parsing, entity-based search, and workflow orchestration
+- **Entity-based search**: Maintain pattern matching efficiency and thread safety within CLI
 - **TableFormatter**: Preserve existing output formats while adding new ones
 - **Lotus::Runner**: Ensure robust external command handling
 

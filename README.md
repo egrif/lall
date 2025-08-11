@@ -48,7 +48,7 @@ A Ruby CLI tool for comparing YAML configuration values across multiple environm
   - Cache namespace isolation for multi-application environments
   - Selective cache clearing with prefix-aware operations
   - Cache management commands (`--cache-stats`, `--clear-cache`, etc.)
-- **Customizable output**: Truncation control, case-insensitive search options
+- **Customizable output**: Truncation control, case-insensitive search options, semantic color coding
 - **Debug support**: Built-in debugging capabilities with detailed command output
 - **Modular architecture**: Clean, maintainable code following Single Responsibility Principle
 
@@ -64,35 +64,23 @@ A Ruby CLI tool for comparing YAML configuration values across multiple environm
 ### Install from GitHub Packages
 
 ```bash
-# Configure gem source
+# make sure the repo is accessible.  
+# Give at least read_packages scope to the token (Settings | Developer Settings | Personal Access Tokens | Tokens (classic)
+bundle config https://rubygems.pkg.github.com/egrif GITHUB_USERNAME:TOKEN
+
+# If the `gem install` command below doesn't find the gem, then Configure gem source
 gem sources --add https://rubygems.pkg.github.com/egrif
 
 # Install the gem
-gem install lall --source "https://rubygems.pkg.github.com/egrif"
+gem install lall # if necessary: --source "https://rubygems.pkg.github.com/egrif"
 ```
-
-Or add to your `Gemfile`:
-
-```ruby
-source "https://rubygems.pkg.github.com/egrif" do
-  gem "lall"
-end
-```
-
-### Install from RubyGems.org
-
-```bash
-gem install lall
-```
-
-### Install from source
 
 ```bash
 git clone https://github.com/egrif/lall.git
 cd lall
 bundle install
 gem build lall.gemspec
-gem install lall-0.2.0.gem
+gem install lall-<VERSION>.gem
 ```
 
 ### Development installation
@@ -161,6 +149,17 @@ groups:
 ```
 
 ### Output Formats
+
+#### Color Coding System
+
+Lall uses semantic colors to indicate the source and relationship of configuration values:
+
+- **White**: Environment-only value (no corresponding group value)
+- **Blue**: Group value with no environment override 
+- **Yellow**: Environment overrides group value (values differ)
+- **Green**: Environment matches group value (values are the same)
+
+This color coding helps quickly identify configuration differences and inheritance patterns across environments and groups.
 
 #### Standard Key Table (default)
 ```bash
@@ -396,6 +395,12 @@ cache:
 output:
   debug: false                 # Disable debug by default
   truncate: 60                 # Longer truncation
+  colors:
+    # Customize color scheme for value display
+    from_env: white            # Environment-only values
+    from_group: cyan           # Group values (changed from default blue)
+    env_changes_group: yellow  # Environment overrides group
+    env_mirrors_group: green   # Environment matches group
 ```
 
 #### Debug Settings Resolution
@@ -410,7 +415,7 @@ This shows the current values and where they came from.
 
 ### Environment Groups
 
-Edit `config/settings.yml` to define custom environment groups:
+Edit `config/settings.yml` to define custom environment groups and color settings:
 
 ```yaml
 groups:
@@ -443,6 +448,18 @@ groups:
     - prod-s2
     - prod-s101
     - prod-s201
+
+# Output formatting with color configuration
+output:
+  colors:
+    # Environment-only value (no group value present)
+    from_env: white
+    # Group value with no environment override
+    from_group: blue
+    # Environment overrides group value (different from group)
+    env_changes_group: yellow
+    # Environment matches group value (same as group)
+    env_mirrors_group: green
 ```
 
 ### Lotus Integration
@@ -517,12 +534,13 @@ The codebase follows these principles:
 
 #### Key Classes
 
-- **`LallCLI`**: Main entry point, argument parsing, and workflow orchestration
-- **`KeySearcher`**: YAML traversal, pattern matching, and secret handling
-- **`TableFormatter`**: Output formatting in multiple styles
+- **`LallCLI`**: Main entry point, argument parsing, workflow orchestration, and entity-based search
+- **`TableFormatter`**: Output formatting in multiple styles with configurable color system
 - **`Lotus::Runner`**: External lotus command execution and response parsing
 - **`Lotus::Environment`**: Environment data modeling and region logic
-- **`Cli::Options`**: Configuration object with sensible defaults
+- **`Lotus::EntitySet`**: Entity management with dual initialization modes
+- **`SettingsManager`**: Thread-safe singleton for configuration management
+- **`CacheManager`**: Thread-safe singleton for cache operations with Redis/Moneta backends
 
 ## Testing
 
@@ -558,10 +576,11 @@ bundle exec rspec spec/lotus/runner_spec.rb
 The test suite covers:
 
 - ✅ All CLI argument parsing and validation
-- ✅ YAML traversal and key matching algorithms  
-- ✅ All output formatting options
+- ✅ Entity-based search and pattern matching algorithms  
+- ✅ All output formatting options with color system
 - ✅ Secret fetching and parallel processing
 - ✅ Lotus command construction and parsing
+- ✅ Thread-safe singleton managers (Settings, Cache)
 - ✅ Error handling and edge cases
 - ✅ Environment group configuration
 - ✅ Integration workflows
@@ -573,17 +592,19 @@ The test suite covers:
 ```
 1. CLI Argument Parsing (LallCLI)
      ↓
-2. Environment Resolution (groups → env list)  
+2. Settings Resolution (SettingsManager with priority hierarchy)
      ↓
-3. Lotus Ping (connectivity check)
+3. Environment Resolution (groups → EntitySet creation)  
+     ↓
+4. Lotus Ping (connectivity check)
      ↓  
-4. Parallel Environment Fetching (Lotus::Runner.fetch_env_yaml)
+5. Parallel Environment Fetching (Lotus::Runner.fetch_env_yaml)
      ↓
-5. YAML Search & Secret Resolution (KeySearcher)
+6. Entity-based Search & Secret Resolution (CLI direct search)
      ↓
-6. Result Aggregation & Formatting (TableFormatter)
+7. Color Assignment & Result Aggregation (TableFormatter with color system)
      ↓
-7. Output Display
+8. Output Display with Semantic Colors
 ```
 
 ### Threading Model
@@ -624,11 +645,24 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Changelog
 
-### v0.1.0 (Current)
-- Initial release
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
+
+### v0.9.0 (Current)
+- **Configurable color system**: Semantic color coding for configuration values
+  - Environment-only values (white)
+  - Group values (blue)  
+  - Environment overrides group (yellow)
+  - Environment matches group (green)
+- **Enhanced pattern matching**: Fixed wildcard pattern matching with proper regex anchoring
+- **Settings-based configuration**: Color settings configurable via settings.yml
+- **Improved output formatting**: Enhanced table formatter with configurable colors
+
+### Key Features
 - Multi-environment YAML comparison
-- Wildcard pattern matching
+- Wildcard pattern matching with proper anchoring
 - Secret exposure capability
-- Multiple output formats
+- Multiple output formats with semantic colors
 - Environment group support
 - Parallel processing optimization
+- Thread-safe singleton architecture
+- Advanced caching with Redis/Moneta backends

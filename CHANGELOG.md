@@ -7,12 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-# Changelog
+## [0.9.0] - 2025-08-10
 
-All notable changes to this project will be documented in this file.
+### Added
+- **Configurable color system**: Semantic color coding for configuration values
+  - Environment-only values display in white
+  - Group values display in blue
+  - Environment overrides group display in yellow
+  - Environment matches group display in green
+- **Enhanced pattern matching**: Fixed wildcard pattern matching with proper regex anchoring
+- **Settings-based configuration**: Color settings configurable via settings.yml and user settings
+- **Improved output formatting**: Enhanced table formatter with configurable ANSI colors
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### Fixed
+- **Pattern matching bug**: Fixed wildcard patterns (e.g., "SOLR*") incorrectly matching keys containing the pattern anywhere (e.g., "SIDEKIQ_SOLR_*")
+- **Regex anchoring**: Properly anchor wildcard patterns to match from start/end of strings
+
+### Changed
+- **TableFormatter**: Enhanced constructor to accept settings for dynamic color configuration
+- **CLI color logic**: Improved color determination logic for semantic value display
+- **Settings integration**: Full integration of color settings throughout the formatting pipeline
 
 ## [0.8.0] - 2025-01-27
 

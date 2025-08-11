@@ -50,44 +50,56 @@ Fetches YAML data from multiple environments in parallel.
 
 ---
 
-### KeySearcher
+### Entity-Based Search (LallCLI)
 
-Handles YAML traversal and key pattern matching.
+Since v0.8.0, search functionality is handled directly within the CLI class using entity-based architecture.
 
-#### Class Methods
+#### Instance Methods
 
-##### `match_key?(key_str, search_str)`
-Tests if a key matches a search pattern.
+##### `key_matches_pattern?(key, pattern)`
+Tests if a key matches a search pattern with proper regex anchoring.
 
 **Parameters:**
-- `key_str` (String): Key to test
-- `search_str` (String): Search pattern (supports `*` wildcards)
+- `key` (String): Key to test
+- `pattern` (String): Search pattern (supports `*` wildcards)
 
 **Returns:**
 - `Boolean` - True if key matches pattern
 
 **Examples:**
 ```ruby
-KeySearcher.match_key?('api_token', 'api_*')     # => true
-KeySearcher.match_key?('database_url', '*_url')  # => true  
-KeySearcher.match_key?('timeout', 'api_*')       # => false
+# Patterns are properly anchored for precise matching
+cli.key_matches_pattern?('api_token', 'api_*')     # => true
+cli.key_matches_pattern?('database_url', '*_url')  # => true  
+cli.key_matches_pattern?('SIDEKIQ_SOLR_URL', 'SOLR*')  # => false (fixed in v0.9.0)
 ```
 
-##### `search(obj, search_str, path=[], results=[], insensitive=false, **options)`
-Recursively searches YAML structure for matching keys.
+##### `perform_search(search_data, env)`
+Searches through entity configuration data for matching keys.
 
 **Parameters:**
-- `obj` (Hash|Array|Object): YAML data to search
-- `search_str` (String): Search pattern
-- `path` (Array): Current path in YAML structure
-- `results` (Array): Accumulator for results
-- `insensitive` (Boolean): Case-insensitive matching
-- `**options` (Hash): Additional options
-  - `:env` (String): Environment name for secret fetching
-  - `:expose` (Boolean): Whether to fetch actual secret values
-  - `:debug` (Boolean): Debug mode
+- `search_data` (Hash): Combined environment and group data
+- `env` (String): Environment name
 
 **Returns:**
+- `Hash` - Search results with color-coded values
+
+##### `determine_config_color(key, env_value, search_data)`
+Determines semantic color for configuration values based on source.
+
+**Parameters:**
+- `key` (String): Configuration key
+- `env_value` (String): Environment value
+- `search_data` (Hash): Search context data
+
+**Returns:**
+- `Symbol` - Color code (:white, :blue, :yellow, :green)
+
+**Color Semantics:**
+- `:white` - Environment-only value
+- `:blue` - Group value with no environment override
+- `:yellow` - Environment overrides group value
+- `:green` - Environment matches group value
 - `Array` - Array of result hashes with `:path`, `:key`, `:value`
 
 ##### `handle_secret_match(results, secret_jobs, path, key, value, expose, env, idx: nil)`

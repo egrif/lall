@@ -15,7 +15,7 @@ The `lall` gem is automatically built and published to GitHub Packages whenever:
 - **Trigger**: Every push and pull request
 - **Purpose**: Validate code quality and functionality
 - **Actions**:
-  - Run tests on Ruby 2.7, 3.0, 3.1, 3.2
+  - Run tests on Ruby 3.1, 3.2, 3.3
   - Run RuboCop linting
   - Build gem for validation
   - Run security audit

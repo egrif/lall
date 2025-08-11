@@ -14,9 +14,7 @@ env = Lotus::Environment.new('prod-s1', application: 'greenhouse')
 
 # Fetch some data (this will cache environment data and any secrets)
 env.fetch
-secrets = env.secret_keys.first(3).map { |key| 
-  KeySearcher.search(env.data, key, env: env.name, expose: true) 
-}
+# Note: Entity-based search is now handled within CLI class, not KeySearcher
 
 # Clear all cache entries related to this environment
 # This will remove:
@@ -29,9 +27,7 @@ group = Lotus::Group.new('shared-config', application: 'greenhouse')
 
 # Fetch group data (this will cache group data and any secrets)
 group.fetch
-group_secrets = group.secrets.first(2).map { |key|
-  KeySearcher.search(group.data, key, env: group.name, expose: true)
-}
+# Note: Entity-based search is now handled within CLI class
 
 # Clear all cache entries related to this group
 # This will remove:

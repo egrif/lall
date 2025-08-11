@@ -1,10 +1,10 @@
 # Test Coverage Summary
 
 ## Overview
-The lall CLI tool now has comprehensive test coverage with 117 test examples covering all major functionality.
+The lall CLI tool now has comprehensive test coverage with 170 test examples covering all major functionality.
 
 ## Test Results
-- **Total Tests**: 117 examples
+- **Total Tests**: 170 examples (161 unit + 9 integration)
 - **Test Status**: ✅ All passing (0 failures)
 - **Test Types**: Unit tests, integration tests, and CLI tests
 
@@ -12,9 +12,10 @@ The lall CLI tool now has comprehensive test coverage with 117 test examples cov
 
 ### Core Functionality ✅
 - [x] CLI argument parsing and validation
-- [x] YAML traversal and key matching
-- [x] Wildcard pattern matching (`*` support)
+- [x] Entity-based search and pattern matching
+- [x] Wildcard pattern matching with proper regex anchoring
 - [x] Multiple output formats (standard, path, pivot)
+- [x] Configurable color system for semantic value display
 - [x] Value truncation with ellipsis
 - [x] Environment group resolution
 - [x] Secret handling (with and without exposure)
@@ -45,6 +46,10 @@ The lall CLI tool now has comprehensive test coverage with 117 test examples cov
 - [x] Options object with defaults
 - [x] Environment data modeling
 - [x] Group data modeling
+- [x] Entity set management with dual initialization modes
+- [x] Settings manager with priority hierarchy
+- [x] Cache manager with Redis/Moneta backends
+- [x] Thread-safe singleton patterns
 - [x] Settings file parsing
 
 ## Test Structure
@@ -53,13 +58,16 @@ The lall CLI tool now has comprehensive test coverage with 117 test examples cov
 spec/
 ├── spec_helper.rb              # Test configuration and fixtures
 ├── cli_options_spec.rb         # Options handling tests
-├── key_searcher_spec.rb        # Core search functionality tests
+├── cache_manager_spec.rb       # Cache system tests
 ├── table_formatter_spec.rb     # Output formatting tests
 ├── lall_cli_spec.rb           # Main CLI class tests
 ├── integration_spec.rb         # End-to-end integration tests
+├── lall/
+│   └── settings_manager_spec.rb # Settings management tests
 └── lotus/
     ├── environment_spec.rb     # Environment model tests
     ├── group_spec.rb          # Group model tests
+    ├── entity_set_spec.rb     # Entity set management tests
     └── runner_spec.rb         # Lotus command execution tests
 ```
 
@@ -76,7 +84,7 @@ bundle exec rake integration
 bundle exec rake test
 
 # Run specific test file
-bundle exec rspec spec/key_searcher_spec.rb
+bundle exec rspec spec/table_formatter_spec.rb
 
 # Run with coverage
 bundle exec rspec --require spec_helper

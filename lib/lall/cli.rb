@@ -339,6 +339,16 @@ class LallCLI
     puts "    Total Keys: #{cache_size[:total_keys]}"
     puts "    Prefixed Keys: #{cache_size[:prefixed_keys]}"
     puts "    Total Size: #{format_bytes(cache_size[:total_size_bytes])}"
+
+    # Display entity counts if available
+    return unless stats[:entity_counts]
+
+    entity_counts = stats[:entity_counts]
+    puts '  Cached Entities:'
+    puts "    Environments: #{entity_counts[:environments]}"
+    puts "    Groups: #{entity_counts[:groups]}"
+    puts "    Environment Secrets: #{entity_counts[:env_secrets]}"
+    puts "    Group Secrets: #{entity_counts[:group_secrets]}"
   end
 
   def format_bytes(bytes)
@@ -475,7 +485,7 @@ class LallCLI
     all_paths = extract_all_paths(env_results)
 
     if all_keys.empty?
-      puts "No keys found containing '#{@options[:string]}'."
+      puts "No keys found matching '#{@options[:string]}'."
       return
     end
 
@@ -575,33 +585,19 @@ class LallCLI
   end
 
   def key_matches_pattern?(key, pattern)
-    # Handle wildcard patterns
-    if pattern.include?('*')
-      # Convert glob pattern to regex with proper anchoring
-      # * at the beginning means "ends with"
-      # * at the end means "starts with"
-      # * in the middle means "contains with wildcard"
-      if pattern.start_with?('*') && pattern.end_with?('*')
-        # *pattern* - contains
-        inner_pattern = pattern[1..-2]
-        regex_pattern = ".*#{Regexp.escape(inner_pattern)}.*"
-      elsif pattern.start_with?('*')
-        # *pattern - ends with
-        suffix_pattern = pattern[1..]
-        regex_pattern = ".*#{Regexp.escape(suffix_pattern)}$"
-      elsif pattern.end_with?('*')
-        # pattern* - starts with
-        prefix_pattern = pattern[0..-2]
-        regex_pattern = "^#{Regexp.escape(prefix_pattern)}.*"
-      else
-        # pattern with * in middle - convert to regex
-        regex_pattern = pattern.split('*').map { |part| Regexp.escape(part) }.join('.*')
-        regex_pattern = "^#{regex_pattern}$"
-      end
-      key.match?(/#{regex_pattern}/i)
+    return true if pattern == '*' || pattern == key
+
+    # Use case-insensitive matching if specified
+    if @options[:insensitive]
+      key.casecmp(pattern).zero? || File.fnmatch(pattern, key, File::FNM_CASEFOLD)
     else
-      # Simple substring match
-      key.include?(pattern)
+      key == pattern || File.fnmatch(pattern, key)
     end
+  rescue ArgumentError => e
+    puts "Invalid pattern '#{pattern}': #{e.message}"
+    false
+  rescue StandardError => e
+    puts "Error matching key '#{key}' with pattern '#{pattern}': #{e.message}"
+    false
   end
 end

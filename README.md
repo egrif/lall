@@ -123,7 +123,7 @@ lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
 | | `--cache-prefix=PREFIX` | Set cache key prefix for isolation | `lall-cache` |
 | | `--no-cache` | Disable caching for this request | `false` |
 | | `--clear-cache` | Clear cache entries with matching prefix and exit | |
-| | `--cache-stats` | Show cache statistics and exit | |
+| | `--cache-stats` | Show cache statistics (size, backend, entity counts) and exit | |
 | | `--debug-settings` | Show settings resolution and exit | |
 | | `--show-settings` | Show all resolved settings and exit | |
 | | `--init-settings` | Initialize user settings file and exit | |
@@ -259,7 +259,7 @@ lall -s config_* -e prod --cache-prefix=web-app
 # Disable caching for real-time sensitive data
 lall -s current_timestamp -e prod --no-cache
 
-# View cache performance statistics (includes current prefix)
+# View cache statistics (shows size, backend info, and entity counts)
 lall --cache-stats
 
 # Clear cache entries with specific prefix
@@ -342,7 +342,7 @@ lall -s secrets -e prod --no-cache
 # Clear cache entries with specific prefix
 lall --cache-prefix=my-app --clear-cache
 
-# View cache statistics (includes current prefix)
+# View cache statistics (shows size, backend info, and entity counts)
 lall --cache-stats
 ```
 

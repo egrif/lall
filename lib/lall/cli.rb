@@ -82,6 +82,7 @@ class LallCLI
     end
     opts.on('-d', '--debug', 'Enable debug output (prints lotus commands)') { @raw_options[:debug] = true }
     opts.on('--debug-settings', 'Show settings resolution and exit') { @raw_options[:debug_settings] = true }
+    opts.on('--show-settings', 'Show all resolved settings and exit') { @raw_options[:show_settings] = true }
     opts.on('--init-settings', 'Initialize user settings file and exit') { @raw_options[:init_settings] = true }
     setup_cache_options(opts)
   end
@@ -122,6 +123,12 @@ class LallCLI
     # Handle debug settings command
     if @raw_options[:debug_settings]
       @settings.debug_settings
+      return
+    end
+
+    # Handle show settings command
+    if @raw_options[:show_settings]
+      show_all_settings
       return
     end
 
@@ -265,6 +272,7 @@ class LallCLI
     resolved[:clear_cache] = @raw_options[:clear_cache]
     resolved[:cache_stats] = @raw_options[:cache_stats]
     resolved[:debug_settings] = @raw_options[:debug_settings]
+    resolved[:show_settings] = @raw_options[:show_settings]
     resolved[:init_settings] = @raw_options[:init_settings]
   end
 
@@ -331,6 +339,16 @@ class LallCLI
     puts "    Total Keys: #{cache_size[:total_keys]}"
     puts "    Prefixed Keys: #{cache_size[:prefixed_keys]}"
     puts "    Total Size: #{format_bytes(cache_size[:total_size_bytes])}"
+
+    # Display entity counts if available
+    return unless stats[:entity_counts]
+
+    entity_counts = stats[:entity_counts]
+    puts '  Cached Entities:'
+    puts "    Environments: #{entity_counts[:environments]}"
+    puts "    Groups: #{entity_counts[:groups]}"
+    puts "    Environment Secrets: #{entity_counts[:env_secrets]}"
+    puts "    Group Secrets: #{entity_counts[:group_secrets]}"
   end
 
   def format_bytes(bytes)
@@ -346,6 +364,73 @@ class LallCLI
     end
 
     format('%<size>.1f %<unit>s', size: size, unit: units[unit_index])
+  end
+
+  def show_all_settings
+    puts 'All Resolved Settings:'
+    puts '======================'
+    puts ''
+
+    # Core search options
+    puts 'Search Options:'
+    puts "  string: #{@options[:string] || 'not set'}"
+    puts "  env: #{@options[:env] || 'not set'}"
+    puts "  group: #{@options[:group] || 'not set'}"
+    puts "  insensitive: #{@options[:insensitive]}"
+    puts ''
+
+    # Output options
+    puts 'Output Options:'
+    puts "  path_also: #{@options[:path_also]}"
+    puts "  pivot: #{@options[:pivot]}"
+    puts "  truncate: #{@options[:truncate]}"
+    puts "  expose: #{@options[:expose]}"
+    puts "  debug: #{@options[:debug]}"
+    puts "  secret_placeholder: #{@settings.get('output.secret_placeholder', '{SECRET}')}"
+    puts ''
+
+    # Color settings
+    puts 'Color Settings:'
+    puts "  from_env: #{@settings.get('output.colors.from_env', :white)}"
+    puts "  from_group: #{@settings.get('output.colors.from_group', :blue)}"
+    puts "  env_changes_group: #{@settings.get('output.colors.env_changes_group', :yellow)}"
+    puts "  env_mirrors_group: #{@settings.get('output.colors.env_mirrors_group', :green)}"
+    puts ''
+
+    # Cache settings
+    cache_settings = @settings.cache_settings
+    puts 'Cache Settings:'
+    puts "  enabled: #{cache_settings[:enabled]}"
+    puts "  backend: #{cache_settings[:backend] || 'auto-detect'}"
+    puts "  ttl: #{cache_settings[:ttl]} seconds"
+    puts "  cache_prefix: #{cache_settings[:cache_prefix] || 'lall-cache'}"
+    puts "  cache_dir: #{cache_settings[:cache_dir] || '~/.lall/cache'}"
+    puts "  redis_url: #{cache_settings[:redis_url] || 'not set'}"
+    puts "  secret_ttl: #{cache_settings[:secret_ttl] || cache_settings[:ttl]} seconds"
+    puts ''
+
+    # Groups
+    groups = @settings.groups
+    puts 'Available Groups:'
+    if groups.empty?
+      puts '  (none defined)'
+    else
+      groups.each do |name, envs|
+        puts "  #{name}: #{envs.join(', ')}"
+      end
+    end
+    puts ''
+
+    # Settings sources information
+    puts 'Settings Sources (in priority order):'
+    puts '  1. CLI arguments'
+    puts '  2. Environment variables'
+    puts "  3. User settings: #{@settings.class::USER_SETTINGS_PATH}"
+    puts "  4. Gem defaults: #{@settings.class::GEM_SETTINGS_PATH}"
+    puts ''
+    puts "Use 'lall --debug-settings' for detailed resolution information."
+
+    exit 0
   end
 
   def init_user_settings_and_exit
@@ -400,7 +485,7 @@ class LallCLI
     all_paths = extract_all_paths(env_results)
 
     if all_keys.empty?
-      puts "No keys found containing '#{@options[:string]}'."
+      puts "No keys found matching '#{@options[:string]}'."
       return
     end
 
@@ -500,33 +585,19 @@ class LallCLI
   end
 
   def key_matches_pattern?(key, pattern)
-    # Handle wildcard patterns
-    if pattern.include?('*')
-      # Convert glob pattern to regex with proper anchoring
-      # * at the beginning means "ends with"
-      # * at the end means "starts with"
-      # * in the middle means "contains with wildcard"
-      if pattern.start_with?('*') && pattern.end_with?('*')
-        # *pattern* - contains
-        inner_pattern = pattern[1..-2]
-        regex_pattern = ".*#{Regexp.escape(inner_pattern)}.*"
-      elsif pattern.start_with?('*')
-        # *pattern - ends with
-        suffix_pattern = pattern[1..]
-        regex_pattern = ".*#{Regexp.escape(suffix_pattern)}$"
-      elsif pattern.end_with?('*')
-        # pattern* - starts with
-        prefix_pattern = pattern[0..-2]
-        regex_pattern = "^#{Regexp.escape(prefix_pattern)}.*"
-      else
-        # pattern with * in middle - convert to regex
-        regex_pattern = pattern.split('*').map { |part| Regexp.escape(part) }.join('.*')
-        regex_pattern = "^#{regex_pattern}$"
-      end
-      key.match?(/#{regex_pattern}/i)
+    return true if pattern == '*' || pattern == key
+
+    # Use case-insensitive matching if specified
+    if @options[:insensitive]
+      key.casecmp(pattern).zero? || File.fnmatch(pattern, key, File::FNM_CASEFOLD)
     else
-      # Simple substring match
-      key.include?(pattern)
+      key == pattern || File.fnmatch(pattern, key)
     end
+  rescue ArgumentError => e
+    puts "Invalid pattern '#{pattern}': #{e.message}"
+    false
+  rescue StandardError => e
+    warn "Error matching key '#{key}' with pattern '#{pattern}': #{e.message}"
+    false
   end
 end

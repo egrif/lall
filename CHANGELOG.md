@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2025-08-11
+
+### Added
+- **Settings overview command**: New `--show-settings` option displays comprehensive view of all resolved settings
+  - Shows search options, output options, color settings, cache configuration
+  - Displays available environment groups
+  - Includes settings resolution priority information
+- **Enhanced cache statistics**: `--cache-stats` now shows detailed entity counts
+  - Displays count of cached environments, groups, environment secrets, and group secrets
+  - Provides better insight into cache utilization and performance
+
+### Improved
+- **Pattern matching**: Enhanced wildcard pattern matching with better error handling
+- **Search logic**: Improved key matching using `File.fnmatch` for more robust pattern support
+- **Cache entity counting**: Added intelligent parsing of cache keys to categorize different entity types
+
 ## [0.9.0] - 2025-08-10
 
 ### Added

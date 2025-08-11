@@ -169,7 +169,7 @@ module Lall
     end
 
     def stats
-      {
+      basic_stats = {
         backend: backend_name,
         enabled: @enabled,
         ttl: @ttl,
@@ -178,6 +178,11 @@ module Lall
         redis_url: @backend_type == :redis ? @redis_url&.gsub(%r{://.*@}, '://***@') : nil,
         cache_size: calculate_cache_size
       }
+
+      # Add entity counts
+      basic_stats[:entity_counts] = calculate_entity_counts
+
+      basic_stats
     end
 
     private
@@ -415,6 +420,80 @@ module Lall
         total_keys: total_files,
         prefixed_keys: prefixed_files,
         total_size_bytes: total_size
+      }
+    end
+
+    def calculate_entity_counts
+      case @backend_type
+      when :redis
+        calculate_redis_entity_counts
+      when :moneta
+        calculate_moneta_entity_counts
+      else
+        { environments: 0, groups: 0, env_secrets: 0, group_secrets: 0 }
+      end
+    end
+
+    def calculate_redis_entity_counts
+      return { environments: 0, groups: 0, env_secrets: 0, group_secrets: 0 } unless @redis_url
+
+      begin
+        redis_client = @cache_store.instance_variable_get(:@redis)
+        pattern = "#{@cache_prefix}.*"
+        prefixed_keys = redis_client.keys(pattern)
+
+        count_entities_from_keys(prefixed_keys)
+      rescue StandardError
+        { environments: 0, groups: 0, env_secrets: 0, group_secrets: 0 }
+      end
+    end
+
+    def calculate_moneta_entity_counts
+      return { environments: 0, groups: 0, env_secrets: 0, group_secrets: 0 } unless File.directory?(@cache_dir)
+
+      keys = []
+      Dir.glob(File.join(@cache_dir, '*')).each do |file_path|
+        next unless File.file?(file_path)
+
+        begin
+          filename = File.basename(file_path)
+          key = CGI.unescape(filename)
+          keys << key if key.start_with?("#{@cache_prefix}.")
+        rescue StandardError
+          next
+        end
+      end
+
+      count_entities_from_keys(keys)
+    end
+
+    def count_entities_from_keys(keys)
+      environments = 0
+      groups = 0
+      env_secrets = 0
+      group_secrets = 0
+
+      keys.each do |key|
+        # Remove cache prefix to get the actual key
+        clean_key = key.sub(/^#{Regexp.escape(@cache_prefix)}\./, '')
+
+        case clean_key
+        when /^environment:/
+          environments += 1
+        when /^group:/
+          groups += 1
+        when /^environment_secret_/
+          env_secrets += 1
+        when /^group_secret_/
+          group_secrets += 1
+        end
+      end
+
+      {
+        environments: environments,
+        groups: groups,
+        env_secrets: env_secrets,
+        group_secrets: group_secrets
       }
     end
   end

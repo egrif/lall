@@ -123,8 +123,9 @@ lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
 | | `--cache-prefix=PREFIX` | Set cache key prefix for isolation | `lall-cache` |
 | | `--no-cache` | Disable caching for this request | `false` |
 | | `--clear-cache` | Clear cache entries with matching prefix and exit | |
-| | `--cache-stats` | Show cache statistics and exit | |
+| | `--cache-stats` | Show cache statistics (size, backend, entity counts) and exit | |
 | | `--debug-settings` | Show settings resolution and exit | |
+| | `--show-settings` | Show all resolved settings and exit | |
 | | `--init-settings` | Initialize user settings file and exit | |
 
 ### Environment Groups
@@ -258,7 +259,7 @@ lall -s config_* -e prod --cache-prefix=web-app
 # Disable caching for real-time sensitive data
 lall -s current_timestamp -e prod --no-cache
 
-# View cache performance statistics (includes current prefix)
+# View cache statistics (shows size, backend info, and entity counts)
 lall --cache-stats
 
 # Clear cache entries with specific prefix
@@ -276,6 +277,9 @@ lall --init-settings
 
 # View how settings are resolved
 lall --debug-settings
+
+# Show all current settings in a comprehensive view
+lall --show-settings
 
 # Use environment variable defaults
 export LALL_CACHE_TTL=7200
@@ -338,7 +342,7 @@ lall -s secrets -e prod --no-cache
 # Clear cache entries with specific prefix
 lall --cache-prefix=my-app --clear-cache
 
-# View cache statistics (includes current prefix)
+# View cache statistics (shows size, backend info, and entity counts)
 lall --cache-stats
 ```
 
@@ -412,6 +416,18 @@ lall --debug-settings
 ```
 
 This shows the current values and where they came from.
+
+Use `--show-settings` to see all resolved settings in a comprehensive view:
+
+```bash
+lall --show-settings
+```
+
+This displays:
+- All search, output, and color options with their current values
+- Cache configuration and status
+- Available environment groups
+- Settings resolution priority information
 
 ### Environment Groups
 

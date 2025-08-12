@@ -141,9 +141,9 @@ module Lotus
     def search_pattern_from_settings
       return nil unless @settings
 
-      # Get the search string from CLI options stored in settings
+      # Get the search pattern from CLI options stored in settings
       cli_options = @settings.instance_variable_get(:@cli_options) || {}
-      cli_options[:string]
+      cli_options[:match]
     end
 
     def instantiate_all_environments

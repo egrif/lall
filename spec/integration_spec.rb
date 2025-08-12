@@ -26,14 +26,14 @@ RSpec.describe 'Integration Tests', :integration do
     end
 
     it 'shows usage when required arguments are missing' do
-      stdout, _, status = Open3.capture3(lall_command, '-s', 'token')
+      stdout, _, status = Open3.capture3(lall_command, '-m', 'token')
 
       expect(status.exitstatus).to eq(1)
       expect(stdout).to include('mutually exclusive and one is required')
     end
 
     it 'shows error for unknown group' do
-      stdout, _, status = Open3.capture3(lall_command, '-s', 'token', '-g', 'nonexistent')
+      stdout, _, status = Open3.capture3(lall_command, '-m', 'token', '-g', 'nonexistent')
 
       expect(status.exitstatus).to eq(1)
       expect(stdout).to include('Unknown group: nonexistent')
@@ -157,7 +157,7 @@ RSpec.describe 'Integration Tests', :integration do
       cli = nil
       output = capture_stdout do
         begin
-          cli = LallCLI.new(['-s', 'api_token', '-e', 'test-env1,test-env2', '--no-cache'])
+          cli = LallCLI.new(['-m', 'api_token', '-e', 'test-env1,test-env2', '--no-cache'])
           cli.run
         rescue SystemExit => e
           # Capture exit but continue test
@@ -176,7 +176,7 @@ RSpec.describe 'Integration Tests', :integration do
     it 'handles wildcard searches' do
       stdout = capture_stdout do
         begin
-          cli = LallCLI.new(['-s', '*_token', '-e', 'test-env1', '--no-cache'])
+          cli = LallCLI.new(['-m', '*_token', '-e', 'test-env1', '--no-cache'])
           cli.run
         rescue SystemExit => e
           @exit_code = e.status
@@ -190,7 +190,7 @@ RSpec.describe 'Integration Tests', :integration do
     it 'exposes secrets when -x flag is used' do
       output = capture_stdout do
         begin
-          cli = LallCLI.new(['-s', 'secret_key', '-e', 'test-env1,test-env2', '--no-cache', '-x'])
+          cli = LallCLI.new(['-m', 'secret_key', '-e', 'test-env1,test-env2', '--no-cache', '-x'])
           cli.run
         rescue SystemExit => e
           @exit_code = e.status
@@ -207,7 +207,7 @@ RSpec.describe 'Integration Tests', :integration do
     it 'shows secret keys but not values when -x flag is not used' do
       output = capture_stdout do
         begin
-          cli = LallCLI.new(['-s', 'secret_key', '-e', 'test-env1', '--no-cache'])
+          cli = LallCLI.new(['-m', 'secret_key', '-e', 'test-env1', '--no-cache'])
           cli.run
         rescue SystemExit => e
           @exit_code = e.status
@@ -229,7 +229,7 @@ RSpec.describe 'Integration Tests', :integration do
 
     it 'validates mutually exclusive options' do
       stdout, _, status = Open3.capture3(
-        lall_command, '-s', 'token', '-e', 'env1', '-g', 'group1'
+        lall_command, '-m', 'token', '-e', 'env1', '-g', 'group1'
       )
 
       expect(status.exitstatus).to eq(1)

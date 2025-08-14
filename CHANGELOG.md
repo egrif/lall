@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.11.0] - 2025-08-13
+
+### Changed
+- **Search Argument**: Renamed the primary search argument from `-s`/`--string` to `-m`/`--match` to more accurately reflect its support for glob patterns.
+- **Environment Definition**: Environments can now be specified using a `name:space:region` format, allowing for more flexible and precise targeting.
 
 ## [0.10.0] - 2025-08-11
 

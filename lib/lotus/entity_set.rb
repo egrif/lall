@@ -129,7 +129,7 @@ module Lotus
       # Find an equivalent entity in the collection based on type, name, space, region, and application
       collection ||= @entities
       collection.find do |e|
-        e.lotus_type == entity.type &&
+        e.lotus_type == entity.lotus_type &&
           e.name == entity.name &&
           e.space == entity.space &&
           e.region == entity.region &&

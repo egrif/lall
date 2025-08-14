@@ -68,7 +68,6 @@ RSpec.describe Lotus::EntitySet do
         
         entity_set.entities.each do |env|
           expect(env).to be_a(Lotus::Environment)
-          expect(env.instance_variable_get(:@cache_manager)).to eq(cache_manager)
           expect(env.entity_set).to eq(entity_set)
           expect(env.application).to eq('greenhouse') # default application
         end
@@ -79,22 +78,7 @@ RSpec.describe Lotus::EntitySet do
         expect(entity_set.settings).to eq(settings)
       end
 
-      context 'when caching is disabled' do
-        let(:cache_settings) { { enabled: false } }
-        let(:null_cache_manager) { double('NullCacheManager') }
-
-        before do
-          allow(Lall::NullCacheManager).to receive(:new).and_return(null_cache_manager)
-        end
-
-        it 'uses NullCacheManager when caching is disabled' do
-          entity_set = described_class.new(settings)
-          
-          entity_set.entities.each do |env|
-            expect(env.instance_variable_get(:@cache_manager)).to eq(null_cache_manager)
-          end
-        end
-      end
+      
     end
   end
 

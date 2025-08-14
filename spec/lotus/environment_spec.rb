@@ -37,6 +37,43 @@ RSpec.describe Lotus::Environment do
       env = Lotus::Environment.new('prod')
       expect(env.data).to be_nil
     end
+
+    context 'with name:space:region format' do
+      it 'parses just the name' do
+        env = Lotus::Environment.new('prod-s5')
+        expect(env.name).to eq('prod-s5')
+        expect(env.space).to eq('prod') # default from name
+        expect(env.region).to eq('use1')
+      end
+
+      it 'parses name and space' do
+        env = Lotus::Environment.new('prod-s5:custom-space')
+        expect(env.name).to eq('prod-s5')
+        expect(env.space).to eq('custom-space')
+        expect(env.region).to eq('use1')
+      end
+
+      it 'parses name, space, and region' do
+        env = Lotus::Environment.new('prod-s5:custom-space:use1')
+        expect(env.name).to eq('prod-s5')
+        expect(env.space).to eq('custom-space')
+        expect(env.region).to eq('use1')
+      end
+
+      it 'parses name and region with empty space' do
+        env = Lotus::Environment.new('prod-s5::use1')
+        expect(env.name).to eq('prod-s5')
+        expect(env.space).to eq('prod') # default from name
+        expect(env.region).to eq('use1')
+      end
+
+      it 'handles trailing colon' do
+        env = Lotus::Environment.new('prod-s5:')
+        expect(env.name).to eq('prod-s5')
+        expect(env.space).to eq('prod') # default from name
+        expect(env.region).to eq('use1')
+      end
+    end
   end
 
   describe '#space' do

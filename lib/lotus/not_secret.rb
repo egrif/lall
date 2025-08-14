@@ -9,8 +9,8 @@ module Lotus
     attr_reader :name, :data, :application, :space, :region, :secrets
     attr_accessor :parent_entity
 
-    def initialize(*args, **kwargs)
-      super
+    def initialize(name, space: nil, region: nil, application: nil, parent: nil)
+      super(name, space: space, region: region, application: application, parent: parent) # rubocop:disable Style/SuperArguments
       @secrets = []
     end
 

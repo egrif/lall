@@ -33,13 +33,16 @@ Output:
 | database_max | 100                         | 50                          |
 ```
 
-### Multiple Wildcards
+### Environment with Custom Space and Region
 
-Find service URLs with complex patterns:
+Search for a key in an environment, overriding the default space and region:
 
 ```bash
-lall -s *_service_*_url -g staging
+lall -m "some_key" -e "prod-s5:custom-space:euc1"
 ```
+
+This will search for `some_key` in the `prod-s5` environment, but will use `custom-space` for the space and `euc1` for the region when fetching data.
+
 
 ## Advanced Search Patterns
 

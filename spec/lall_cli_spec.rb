@@ -25,24 +25,24 @@ RSpec.describe LallCLI do
 
   describe '#initialize' do
     context 'with valid arguments' do
-      it 'parses string and environment options' do
-        cli = LallCLI.new(['-s', 'api_token', '-e', 'prod,staging'])
+      it 'parses match and environment options' do
+        cli = LallCLI.new(['-m', 'api_token', '-e', 'prod,staging'])
         options = cli.instance_variable_get(:@options)
 
-        expect(options[:string]).to eq('api_token')
+        expect(options[:match]).to eq('api_token')
         expect(options[:env]).to eq('prod,staging')
       end
 
-      it 'parses string and group options' do
-        cli = LallCLI.new(['-s', 'secret_*', '-g', 'test'])
+      it 'parses match and group options' do
+        cli = LallCLI.new(['-m', 'secret_*', '-g', 'test'])
         options = cli.instance_variable_get(:@options)
 
-        expect(options[:string]).to eq('secret_*')
+        expect(options[:match]).to eq('secret_*')
         expect(options[:group]).to eq('test')
       end
 
       it 'parses boolean flags' do
-        cli = LallCLI.new(['-s', 'token', '-e', 'prod', '-p', '-i', '-v', '-x', '-d'])
+        cli = LallCLI.new(['-m', 'token', '-e', 'prod', '-p', '-i', '-v', '-x', '-d'])
         options = cli.instance_variable_get(:@options)
 
         expect(options[:path_also]).to be true
@@ -53,14 +53,14 @@ RSpec.describe LallCLI do
       end
 
       it 'parses truncate option with value' do
-        cli = LallCLI.new(['-s', 'token', '-e', 'prod', '-t50'])
+        cli = LallCLI.new(['-m', 'token', '-e', 'prod', '-t50'])
         options = cli.instance_variable_get(:@options)
 
         expect(options[:truncate]).to eq(50)
       end
 
       it 'parses truncate option with value' do
-        cli = LallCLI.new(['-s', 'token', '-e', 'prod', '-t', '50'])
+        cli = LallCLI.new(['-m', 'token', '-e', 'prod', '-t', '50'])
         options = cli.instance_variable_get(:@options)
 
         expect(options[:truncate]).to eq(50)
@@ -70,7 +70,7 @@ RSpec.describe LallCLI do
     context 'with long-form options' do
       it 'parses long-form options' do
         cli = LallCLI.new([
-                            '--string=api_token',
+                            '--match=api_token',
                             '--env=prod,staging',
                             '--path',
                             '--insensitive',
@@ -81,7 +81,7 @@ RSpec.describe LallCLI do
                           ])
         options = cli.instance_variable_get(:@options)
 
-        expect(options[:string]).to eq('api_token')
+        expect(options[:match]).to eq('api_token')
         expect(options[:env]).to eq('prod,staging')
         expect(options[:path_also]).to be true
         expect(options[:insensitive]).to be true
@@ -95,26 +95,26 @@ RSpec.describe LallCLI do
 
   describe '#run' do
     context 'with invalid arguments' do
-      it 'exits with error when string is missing' do
+      it 'exits with error when match is missing' do
         cli = LallCLI.new(['-e', 'prod'])
 
         expect { cli.run }.to output(/Usage:/).to_stdout.and raise_error(SystemExit)
       end
 
       it 'exits with error when both env and group are missing' do
-        cli = LallCLI.new(['-s', 'token'])
+        cli = LallCLI.new(['-m', 'token'])
 
         expect { cli.run }.to output(/Usage:/).to_stdout.and raise_error(SystemExit)
       end
 
       it 'exits with error when both env and group are provided' do
-        cli = LallCLI.new(['-s', 'token', '-e', 'prod', '-g', 'test'])
+        cli = LallCLI.new(['-m', 'token', '-e', 'prod', '-g', 'test'])
 
         expect { cli.run }.to output(/mutually exclusive/).to_stdout.and raise_error(SystemExit)
       end
 
       it 'exits with error for unknown group' do
-        cli = LallCLI.new(['-s', 'token', '-g', 'unknown_group'])
+        cli = LallCLI.new(['-m', 'token', '-g', 'unknown_group'])
 
         expect { cli.run }.to output(/Unknown group:/).to_stdout.and raise_error(SystemExit)
       end

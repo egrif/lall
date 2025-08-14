@@ -6,6 +6,16 @@ module Lotus
   class Environment < NotSecret
     attr_reader :group, :secrets
 
+    def initialize(name, space: nil, region: nil, application: 'greenhouse', parent: nil)
+      vals = name.split(':')
+
+      name = vals[0]
+      space = vals[1] if vals.length > 1 && !vals[1].to_s.empty?
+      region = vals[2] if vals.length > 2 && !vals[2].to_s.empty?
+
+      super(name, space: space, region: region, application: application, parent: parent) # rubocop:disable Style/SuperArguments
+    end
+
     def group_name
       raise NoMethodError, 'undefined method `group_name` - requires data to be loaded first' if @data.nil?
 
@@ -51,7 +61,6 @@ module Lotus
       # Try to get the group entity from the parent EntitySet
       return nil unless @parent_entity.respond_to?(:groups)
 
-      group_name = @data&.dig('group')
       return nil unless group_name
 
       @parent_entity.groups.find { |group| group.name == group_name }

@@ -32,11 +32,15 @@ class LallCLI
     initialize_cache_manager
   end
 
+  # TODO: Env definitions
+  # 1. accept env:space:region,env:space:region...
+  # 2. accept -s space -r region -a application as override for anything else not specified on the command line
+
   private
 
   def setup_option_parser
     OptionParser.new do |opts|
-      opts.banner = 'Usage: ruby lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [-p] [-i] [-v]'
+      opts.banner = 'Usage: ruby lall -m MATCH [-e ENV[,ENV2,...]] [-g GROUP] [-p] [-i] [-v]'
       setup_search_options(opts)
       setup_environment_options(opts)
       setup_format_options(opts)
@@ -45,15 +49,15 @@ class LallCLI
   end
 
   def setup_search_options(opts)
-    opts.on('-sSTRING', '--string=STRING', 'String to search for in YAML keys (required)') do |v|
-      @raw_options[:string] = v
+    opts.on('-mMATCH', '--match=MATCH', 'Glob pattern to search for in YAML keys (required)') do |v|
+      @raw_options[:match] = v
     end
     opts.on('-i', '--insensitive', 'Case-insensitive key search (optional)') { @raw_options[:insensitive] = true }
   end
 
   def setup_environment_options(opts)
     opts.on('-eENV', '--env=ENV',
-            'Comma-separated environment(s) to search, e.g., prod,stage (mutually exclusive with -g)') do |v|
+            'Comma-separated environment(s) to search, e.g., "prod,staging:prod,prod-s5:prod:use1"') do |v|
       @raw_options[:env] = v
     end
     opts.on('-gGROUP', '--group=GROUP',
@@ -241,7 +245,7 @@ class LallCLI
 
   def resolve_core_options(resolved)
     # Core search options (CLI-only, no settings fallback)
-    resolved[:string] = @raw_options[:string]
+    resolved[:match] = @raw_options[:match]
     resolved[:env] = @raw_options[:env]
     resolved[:group] = @raw_options[:group]
   end
@@ -373,7 +377,7 @@ class LallCLI
 
     # Core search options
     puts 'Search Options:'
-    puts "  string: #{@options[:string] || 'not set'}"
+    puts "  match: #{@options[:match] || 'not set'}"
     puts "  env: #{@options[:env] || 'not set'}"
     puts "  group: #{@options[:group] || 'not set'}"
     puts "  insensitive: #{@options[:insensitive]}"
@@ -458,13 +462,13 @@ class LallCLI
   def validate_options
     return if valid_option_combination?
 
-    puts 'Usage: ruby lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [-p]'
+    puts 'Usage: ruby lall -m MATCH [-e ENV[,ENV2,...]] [-g GROUP] [-p]'
     puts '  -e and -g are mutually exclusive and one is required.'
     exit 1
   end
 
   def valid_option_combination?
-    # Special case: allow -g list without string requirement
+    # Special case: allow -g list without match requirement
     return true if @options[:group] == 'list'
 
     # Check for mutually exclusive options first
@@ -476,7 +480,7 @@ class LallCLI
       exit 1
     end
 
-    @options[:string] &&
+    @options[:match] &&
       (@options[:env] || @options[:group])
   end
 
@@ -485,7 +489,7 @@ class LallCLI
     all_paths = extract_all_paths(env_results)
 
     if all_keys.empty?
-      puts "No keys found matching '#{@options[:string]}'."
+      puts "No keys found matching '#{@options[:match]}'."
       return
     end
 
@@ -523,7 +527,7 @@ class LallCLI
   def perform_search(search_data, _env)
     # Simple search that just shows secret placeholder for secrets instead of KeySearcher
     results = []
-    pattern = @options[:string]
+    pattern = @options[:match]
 
     # Search configs with intelligent coloring
     search_data['configs']&.each do |key, value|

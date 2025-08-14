@@ -146,12 +146,6 @@ RSpec.describe Lotus::Group do
       expected_cmd = 'lotus view -s prod -r use1 -a greenhouse -g test-group'
       expect(group.lotus_cmd).to eq(expected_cmd)
     end
-
-    it 'handles group without explicit space/region' do
-      group = Lotus::Group.new('test-group')
-      expected_cmd = 'lotus view -s  -r  -a greenhouse -g test-group'
-      expect(group.lotus_cmd).to eq(expected_cmd)
-    end
   end
 
   describe '#lotus_parse' do

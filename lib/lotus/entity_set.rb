@@ -113,9 +113,10 @@ module Lotus
     #   self
     # end
 
-    def find_entity(type, name, space, region, application)
+    def find_entity(type, name, space, region, application, collection = nil)
       # Find an entity by type, name, space, region, and application
-      @entities.find do |entity|
+      collection ||= @entities
+      collection.find do |entity|
         entity.lotus_type == type &&
           entity.name == name &&
           entity.space == space &&
@@ -128,7 +129,7 @@ module Lotus
       # Find an equivalent entity in the collection based on type, name, space, region, and application
       collection ||= @entities
       collection.find do |e|
-        e.lotus_type == entity_type &&
+        e.lotus_type == entity.type &&
           e.name == entity.name &&
           e.space == entity.space &&
           e.region == entity.region &&
@@ -150,7 +151,7 @@ module Lotus
       return [] unless @settings
 
       # Initialize cache manager based on settings
-      cache_manager = initialize_cache_manager
+      # cache_manager = initialize_cache_manager
 
       environments = []
       target_environments = determine_target_environments(@settings)
@@ -161,29 +162,29 @@ module Lotus
           parent: self
         )
         # Set cache manager on environment
-        environment.instance_variable_set(:@cache_manager, cache_manager)
+        # environment.instance_variable_set(:@cache_manager, cache_manager)
         environments << environment
       end
 
       environments
     end
 
-    def initialize_cache_manager
-      return nil unless @settings.respond_to?(:cache_settings)
+    # def initialize_cache_manager
+    #   return nil unless @settings.respond_to?(:cache_settings)
 
-      cache_settings = @settings.cache_settings
-      if cache_settings[:enabled]
-        require_relative '../lall/cache_manager'
-        Lall::CacheManager.new(cache_settings)
-      else
-        require_relative '../lall/null_cache_manager'
-        Lall::NullCacheManager.new
-      end
-    rescue StandardError
-      # Fallback to null cache manager if initialization fails
-      require_relative '../lall/null_cache_manager'
-      Lall::NullCacheManager.new
-    end
+    #   cache_settings = @settings.cache_settings
+    #   if cache_settings[:enabled]
+    #     require_relative '../lall/cache_manager'
+    #     Lall::CacheManager.new(cache_settings)
+    #   else
+    #     require_relative '../lall/null_cache_manager'
+    #     Lall::NullCacheManager.new
+    #   end
+    # rescue StandardError
+    #   # Fallback to null cache manager if initialization fails
+    #   require_relative '../lall/null_cache_manager'
+    #   Lall::NullCacheManager.new
+    # end
 
     def instantiate_groups_from_environments(environments)
       # Get all unique group names from the fetched environments and derive their attributes
@@ -196,7 +197,7 @@ module Lotus
         next unless group_name
 
         # Initialize group info if we haven't seen this group before
-        next if find_entity('group', group_name, env.space, env.region, env.application)
+        next if find_entity('group', group_name, env.space, env.region, env.application, groups)
 
         groups << create_group_from_environment(group_name, env)
       end

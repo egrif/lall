@@ -57,7 +57,7 @@ class LallCLI
 
   def setup_environment_options(opts)
     opts.on('-eENV', '--env=ENV',
-            'Comma-separated environment(s) to search, e.g., prod,stage (mutually exclusive with -g)') do |v|
+            'Comma-separated environment(s) to search, e.g., "prod,staging:prod,prod-s5:prod:use1"') do |v|
       @raw_options[:env] = v
     end
     opts.on('-gGROUP', '--group=GROUP',

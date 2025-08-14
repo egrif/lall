@@ -110,7 +110,7 @@ lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
 | Option | Long Form | Description | Default |
 |--------|-----------|-------------|---------|
 | `-s` | `--string=STRING` | String to search for in YAML keys (required, supports `*` wildcards) | |
-| `-e` | `--env=ENV` | Comma-separated environment(s) to search | |
+| `-e` | `--env=ENV` | Comma-separated environment(s) to search. Format: `name[:space[:region]]` | |
 | `-g` | `--group=GROUP` | Predefined group of environments | |
 | `-p` | `--path` | Include the full path column in output | `false` |
 | `-i` | `--insensitive` | Case-insensitive key search | `false` |

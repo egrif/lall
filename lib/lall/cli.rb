@@ -65,6 +65,16 @@ class LallCLI
             'Use "list" to see available groups') do |v|
       @raw_options[:group] = v
     end
+
+    opts.on('-sSPACE', '--space=SPACE', 'Default space for environments') do |v|
+      @raw_options[:space] = v
+    end
+    opts.on('-aAPP', '--application=APP', 'Default application for environments') do |v|
+      @raw_options[:application] = v
+    end
+    opts.on('-rREGION', '--region=REGION', 'Default region for environments') do |v|
+      @raw_options[:region] = v
+    end
   end
 
   def setup_format_options(opts)

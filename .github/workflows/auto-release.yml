@@ -176,11 +176,6 @@ jobs:
         gem install lall --source "https://rubygems.pkg.github.com/egrif"
         ```
         
-        ### From RubyGems.org (after manual publish)
-        ```bash
-        gem install lall
-        ```
-        
         ## Usage
         
         ```bash

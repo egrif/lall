@@ -2,42 +2,18 @@
 
 require_relative 'environment'
 require_relative 'group'
+require_relative '../lall/settings_manager'
 require 'pry'
 
 module Lotus
   # EntitySet manages collections of Lotus entities (Environments and Groups)
   # Provides parallel fetching, instantiation, and relationship management
-  # rubocop:disable Metrics/ClassLength
   class EntitySet
     attr_reader :entities, :settings
 
-    def initialize(entities_or_settings = nil, settings = nil)
-      # Handle different calling patterns:
-      # new() - empty initialization
-      # new(settings) - settings only
-      # new(entities, settings) - entities and settings
-
-      if entities_or_settings.nil?
-        # new() - empty initialization
-        @entities = []
-        @settings = nil
-      elsif settings.nil?
-        # new(settings) - first parameter is settings
-        if entities_or_settings.respond_to?(:groups)
-          @entities = []
-          @settings = entities_or_settings
-          @entities += instantiate_all_environments
-        else
-          # new(entities) - first parameter is entities array
-          @entities = entities_or_settings
-          @settings = nil
-        end
-      else
-        # new(entities, settings) - both parameters provided
-        @entities = entities_or_settings
-        @settings = settings
-        @entities += instantiate_all_environments if settings
-      end
+    def initialize(_entities = nil, settings = nil)
+      @settings = settings || Lall::SettingsManager.instance
+      @entities = instantiate_all_environments
     end
 
     def add(entity)
@@ -91,27 +67,13 @@ module Lotus
 
     # Get environments from the entity set
     def environments
-      @entities.select { |entity| entity.is_a?(Lotus::Environment) }
+      @entities.select { |entity| entity.lotus_type == 'environment' }
     end
 
     # Get groups from the entity set
     def groups
-      @entities.select { |entity| entity.is_a?(Lotus::Group) }
+      @entities.select { |entity| entity.lotus_type == 'group' }
     end
-
-    # def fetch
-    #   # First, fetch all environments in parallel
-    #   require_relative 'runner'
-    #   Lotus::Runner.fetch_all(@entities)
-
-    #   # Then, create and fetch all groups that these environments belong to
-    #   environments = @entities.select { |e| e.is_a?(Lotus::Environment) }
-    #   groups = instantiate_groups_from_environments(environments)
-    #   Lotus::Runner.fetch_all(groups) unless groups.empty?
-
-    #   # Return self for method chaining
-    #   self
-    # end
 
     def find_entity(type, name, space, region, application, collection = nil)
       # Find an entity by type, name, space, region, and application
@@ -143,48 +105,31 @@ module Lotus
       return nil unless @settings
 
       # Get the search pattern from CLI options stored in settings
-      cli_options = @settings.instance_variable_get(:@cli_options) || {}
-      cli_options[:match]
+      @settings.get('match')
     end
 
     def instantiate_all_environments
       return [] unless @settings
 
-      # Initialize cache manager based on settings
-      # cache_manager = initialize_cache_manager
-
       environments = []
       target_environments = determine_target_environments(@settings)
+
+      options = {}
+      options[:space] = @settings.get('space') if @settings.get('space')
+      options[:region] = @settings.get('region') if @settings.get('region')
+      options[:application] = @settings.get('application') if @settings.get('application')
 
       target_environments.each do |env_name|
         environment = Lotus::Environment.new(
           env_name,
+          **options,
           parent: self
         )
-        # Set cache manager on environment
-        # environment.instance_variable_set(:@cache_manager, cache_manager)
         environments << environment
       end
 
       environments
     end
-
-    # def initialize_cache_manager
-    #   return nil unless @settings.respond_to?(:cache_settings)
-
-    #   cache_settings = @settings.cache_settings
-    #   if cache_settings[:enabled]
-    #     require_relative '../lall/cache_manager'
-    #     Lall::CacheManager.new(cache_settings)
-    #   else
-    #     require_relative '../lall/null_cache_manager'
-    #     Lall::NullCacheManager.new
-    #   end
-    # rescue StandardError
-    #   # Fallback to null cache manager if initialization fails
-    #   require_relative '../lall/null_cache_manager'
-    #   Lall::NullCacheManager.new
-    # end
 
     def instantiate_groups_from_environments(environments)
       # Get all unique group names from the fetched environments and derive their attributes
@@ -215,23 +160,18 @@ module Lotus
       )
     end
 
-    def determine_target_environments(settings)
-      # Handle cases where settings is nil or not the expected type
-      return [] unless settings.respond_to?(:groups)
-
-      # Check if specific environments or group was requested in CLI options
-      cli_options = settings.instance_variable_get(:@cli_options) || {}
-
-      if cli_options[:group]
+    def determine_target_environments(_settings)
+      # this logic should probably be in the settings manager
+      if @settings.get('group')
         # Get environments from the specified group
-        settings.groups[cli_options[:group]] || []
-      elsif cli_options[:env]
+        @settings.groups[@settings.get('group')] || []
+      elsif @settings.get('env')
         # Get environments from comma-separated list
-        cli_options[:env].split(',').map(&:strip)
+        @settings.get('env').split(',').map(&:strip)
       else
         # Fallback: get all environments from all groups (original behavior)
         all_environments = []
-        settings.groups.each_value do |environment_names|
+        @settings.groups.each_value do |environment_names|
           environment_names.each do |env_name|
             # Skip duplicates - same environment might be in multiple groups
             next if all_environments.include?(env_name)
@@ -277,5 +217,4 @@ module Lotus
       /^#{escaped}$/i
     end
   end
-  # rubocop:enable Metrics/ClassLength
 end

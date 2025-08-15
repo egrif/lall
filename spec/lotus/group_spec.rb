@@ -28,10 +28,10 @@ RSpec.describe Lotus::Group do
 
   describe '#initialize' do
     it 'stores the group name' do
-      group = Lotus::Group.new('test-group')
+      group = Lotus::Group.new('test-group', application:"greenhouse")
       expect(group.name).to eq('test-group')
       expect(group.data).to be_nil
-      expect(group.application).to eq('greenhouse')
+      expect(group.application).to eq('greenhouse') 
     end
 
     it 'accepts custom application' do
@@ -142,7 +142,7 @@ RSpec.describe Lotus::Group do
 
   describe '#lotus_cmd' do
     it 'constructs correct lotus command' do
-      group = Lotus::Group.new('test-group', space: 'prod', region: 'use1')
+      group = Lotus::Group.new('test-group', space: 'prod', region: 'use1', application: 'greenhouse')
       expected_cmd = 'lotus view -s prod -r use1 -a greenhouse -g test-group'
       expect(group.lotus_cmd).to eq(expected_cmd)
     end

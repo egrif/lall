@@ -66,10 +66,10 @@ A Ruby CLI tool for comparing YAML configuration values across multiple environm
 ```bash
 # make sure the repo is accessible.  
 # Give at least read_packages scope to the token (Settings | Developer Settings | Personal Access Tokens | Tokens (classic)
-bundle config https://rubygems.pkg.github.com/egrif GITHUB_USERNAME:TOKEN
+bundle config set --global https://rubygems.pkg.github.com/egrif GITHUB_USERNAME:TOKEN
 
 # If the `gem install` command below doesn't find the gem, then Configure gem source
-gem sources --add https://rubygems.pkg.github.com/egrif
+gem sources --add https://GITHUB_USERNAME:TOKEN@rubygems.pkg.github.com/egrif
 
 # Install the gem
 gem install lall # if necessary: --source "https://rubygems.pkg.github.com/egrif"
@@ -98,20 +98,23 @@ ln -s $(pwd)/bin/lall /usr/local/bin/lall
 ### Basic Usage
 
 ```bash
-lall -s STRING [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
+lall -m MATCH [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
 ```
 
 **Required arguments:**
-- `-s, --string=STRING` : String to search for in YAML keys (supports wildcards with `*`)
+- `-m, --match=MATCH` : Glob pattern to search for in YAML keys (required)
 - Either `-e, --env=ENV` OR `-g, --group=GROUP` (mutually exclusive)
 
 ### Command Line Options
 
 | Option | Long Form | Description | Default |
 |--------|-----------|-------------|---------|
-| `-s` | `--string=STRING` | String to search for in YAML keys (required, supports `*` wildcards) | |
+| `-m` | `--match=MATCH` | Glob pattern to search for in YAML keys (required) | |
 | `-e` | `--env=ENV` | Comma-separated environment(s) to search. Format: `name[:space[:region]]` | |
 | `-g` | `--group=GROUP` | Predefined group of environments | |
+| `-s` | `--space=SPACE` | Default space for environments if not specified in `-e` | `prod` |
+| `-a` | `--application=APP` | Default application for environments | `greenhouse` |
+| `-r` | `--region=REGION` | Default region for environments if not specified in `-e` | |
 | `-p` | `--path` | Include the full path column in output | `false` |
 | `-i` | `--insensitive` | Case-insensitive key search | `false` |
 | `-v` | `--pivot` | Pivot table (environments as rows, keys as columns) | `false` |

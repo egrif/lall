@@ -2,21 +2,22 @@
 
 require 'open3'
 require 'yaml'
+require_relative '../lall/settings_manager'
 
 module Lotus
   class Runner
-    DEBUG_MODE = ARGV.include?('-d') || ARGV.include?('--debug') || ENV.fetch('DEBUG', nil)
     TEST_MODE = ENV['RSPEC_CORE_VERSION'] || ENV['RAILS_ENV'] == 'test' || ENV['RACK_ENV'] == 'test'
 
     def self.fetch(entity)
-      start_time = Time.now if DEBUG_MODE
+      @debug_mode = Lall::SettingsManager.instance.get('debug')
+      start_time = Time.now if @debug_mode
 
       # Check cache first based on entity type
       cache_manager = self.cache_manager
       cached_data = cached_data_for_entity(entity, cache_manager)
       if cached_data
         entity.lotus_parse(cached_data)
-        if DEBUG_MODE
+        if @debug_mode
           elapsed = Time.now - start_time
           puts "DEBUG: #{entity.lotus_type} '#{entity.name}' - loaded from cache in #{elapsed.round(3)}s"
         end
@@ -24,11 +25,11 @@ module Lotus
       end
 
       # Cache miss - fetch from lotus using existing methods for backward compatibility
-      puts "DEBUG: #{entity.lotus_type} '#{entity.name}' - cache miss, fetching from lotus..." if DEBUG_MODE
+      puts "DEBUG: #{entity.lotus_type} '#{entity.name}' - cache miss, fetching from lotus..." if @debug_mode
 
-      fetch_start_time = Time.now if DEBUG_MODE
+      fetch_start_time = Time.now if @debug_mode
       raw_data = fetch_yaml(entity)
-      fetch_end_time = Time.now if DEBUG_MODE
+      fetch_end_time = Time.now if @debug_mode
 
       return nil unless raw_data
 
@@ -38,7 +39,7 @@ module Lotus
       # Cache the raw data, not the parsed result
       set_cached_data_for_entity(entity, cache_manager, raw_data)
 
-      if DEBUG_MODE
+      if @debug_mode
         total_elapsed = Time.now - start_time
         fetch_elapsed = fetch_end_time - fetch_start_time
         entity_type = entity.class.name.split('::').last
@@ -53,7 +54,11 @@ module Lotus
     def self.fetch_all(entities)
       return [] if entities.empty?
 
-      puts "DEBUG: Fetching #{entities.map(&:name).join(', ')} in parallel..." if DEBUG_MODE
+      puts "DEBUG: Fetching #{entities.map(&:name).join(', ')} in parallel..." if @debug_mode
+
+      # ping the spaces to avoid reauthorizing for each entity
+      spaces = entities.map { |e| e.respond_to?(:space) ? e.space : 'prod' }.uniq
+      ping_all(spaces)
 
       # Use threading to fetch all entities in parallel
       threads = entities.map do |entity|
@@ -76,7 +81,7 @@ module Lotus
 
     def self.fetch_yaml(entity)
       lotus_cmd = entity.lotus_cmd
-      puts "DEBUG: Executing: #{lotus_cmd}" if DEBUG_MODE
+      puts "DEBUG: Executing: #{lotus_cmd}" if @debug_mode
 
       yaml_output = nil
       Open3.popen3(lotus_cmd) do |_stdin, stdout, stderr, wait_thr|
@@ -87,16 +92,21 @@ module Lotus
         end
       end
 
-      puts 'DEBUG: Lotus command completed successfully, parsing YAML...' if DEBUG_MODE
+      puts 'DEBUG: Lotus command completed successfully, parsing YAML...' if @debug_mode
 
       YAML.safe_load(yaml_output)
     end
 
-    def self.ping(env)
+    def self.ping(space)
       # Use the environment's space for the ping command
-      space = env.respond_to?(:space) ? env.space : 'prod'
-      ping_cmd = "lotus ping -s \\#{space} > /dev/null 2>&1"
+      ping_cmd = "lotus ping -s #{space} > /dev/null 2>&1"
       system(ping_cmd)
+    end
+
+    def self.ping_all(spaces)
+      spaces.each do |space|
+        ping(space)
+      end
     end
 
     def self.cache_manager

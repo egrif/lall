@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.2] - 2025-09-16
+
+### Fixed
+- **Critical Bug**: Fixed secret exposure with application flag
+  - Secret values were not being exposed when using `-a`/`--application` flag with `-x`/`--expose` option
+  - Problem was in `build_search_data_for_entity()` and `add_group_data_to_search_data()` methods
+  - Both environment and group secrets were missing required 'keys' array when `@options[:expose]` was true
+  - The `perform_search()` method requires the 'keys' array to find secrets to search through
+  - Now 'keys' array is always added regardless of expose setting
+  - Added comprehensive integration tests to prevent regression
+
+### Added
+- **Test Coverage**: New integration tests for secret exposure functionality
+  - Added tests for secret exposure with application flag in both expose and non-expose modes
+  - Ensures secrets are properly exposed with `-a app -x` and show placeholders with `-a app`
+
 ## [0.11.1] - 2025-08-15
 
 ### Fixed

@@ -13,11 +13,13 @@ task :spec do
   output = `bundle exec rspec #{spec_files.join(' ')} 2>&1`
   puts output
 
-  # More robust pattern matching for success detection
+  # More robust pattern matching for success detection - avoid false positives from test descriptions
   if output =~ /(\d+) examples?, 0 failures/ &&
      !output.include?('failed') &&
-     !output.include?(' error') &&
-     !output.include?('Error:')
+     !output.include?('Error:') &&
+     !output.include?('LoadError') &&
+     !output.include?('RuntimeError') &&
+     !output.include?('error occurred outside of examples')
     puts 'All tests passed!'
     exit 0
   else
@@ -25,8 +27,10 @@ task :spec do
     puts 'DEBUG: Pattern match failed - checking output:' if ENV['CI']
     puts "  - Has '0 failures': #{output.include?('0 failures')}" if ENV['CI']
     puts "  - Contains 'failed': #{output.include?('failed')}" if ENV['CI']
-    puts "  - Contains ' error': #{output.include?(' error')}" if ENV['CI']
     puts "  - Contains 'Error:': #{output.include?('Error:')}" if ENV['CI']
+    puts "  - Contains 'LoadError': #{output.include?('LoadError')}" if ENV['CI']
+    puts "  - Contains 'RuntimeError': #{output.include?('RuntimeError')}" if ENV['CI']
+    puts "  - Contains 'error occurred outside': #{output.include?('error occurred outside of examples')}" if ENV['CI']
     exit 1
   end
 end

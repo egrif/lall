@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        ruby-version: ['3.1', '3.2', '3.3']
+        ruby-version: ['3.1', '3.2', '3.4']
 
     steps:
     - uses: actions/checkout@v4
@@ -47,11 +47,11 @@ jobs:
 
     - name: Check code style
       run: bundle exec rubocop
-      if: matrix.ruby-version == '3.3'
+      if: matrix.ruby-version == '3.4'
 
     - name: Build gem (validation)
       run: gem build lall.gemspec
-      if: matrix.ruby-version == '3.3'
+      if: matrix.ruby-version == '3.4'
 
     - name: Generate coverage report
       run: |
@@ -59,7 +59,7 @@ jobs:
         if [ -f coverage/coverage.json ]; then
           echo "Coverage report generated"
         fi
-      if: matrix.ruby-version == '3.3'
+      if: matrix.ruby-version == '3.4'
 
   security:
     runs-on: ubuntu-latest
@@ -69,7 +69,7 @@ jobs:
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: '3.3'
+        ruby-version: '3.4'
         bundler-cache: false
 
     - name: Configure bundler and install dependencies
@@ -91,7 +91,7 @@ jobs:
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: '3.3'
+        ruby-version: '3.4'
         bundler-cache: false
 
     - name: Configure bundler and install dependencies

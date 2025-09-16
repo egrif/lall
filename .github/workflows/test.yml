@@ -55,7 +55,7 @@ jobs:
 
     - name: Generate coverage report
       run: |
-        bundle exec rspec --require spec_helper
+        bundle exec rake spec
         if [ -f coverage/coverage.json ]; then
           echo "Coverage report generated"
         fi

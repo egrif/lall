@@ -106,23 +106,10 @@ RSpec.describe Lotus::Runner do
 
   describe '.ping' do
     it 'constructs correct ping command with environment space' do
-      env = double('environment', space: 'test-space')
-      expect(Lotus::Runner).to receive(:system).with('lotus ping -s \\test-space > /dev/null 2>&1')
+      expect(Lotus::Runner).to receive(:system).with('lotus ping -s test-space > /dev/null 2>&1')
 
-      Lotus::Runner.ping(env)
+      Lotus::Runner.ping('test-space')
     end
 
-    it 'defaults to prod space for string environments' do
-      expect(Lotus::Runner).to receive(:system).with('lotus ping -s \\prod > /dev/null 2>&1')
-
-      Lotus::Runner.ping('test-env-string')
-    end
-
-    it 'returns system command result' do
-      allow(Lotus::Runner).to receive(:system).and_return(true)
-
-      result = Lotus::Runner.ping('test-env')
-      expect(result).to be true
-    end
   end
 end

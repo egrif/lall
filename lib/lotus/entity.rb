@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative '../lall/settings_manager'
+
 module Lotus
   # Base class for Lotus entities (Environment and Group)
   # Provides common functionality for data fetching and region/space logic
@@ -14,6 +16,7 @@ module Lotus
       @application = application
       @data = nil # Will be loaded later via fetch method
       @secrets = [] # Will be populated after data is loaded
+      @settings = Lall::SettingsManager.instance
       @parent_entity = parent
     end
 

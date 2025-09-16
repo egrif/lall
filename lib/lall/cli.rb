@@ -94,7 +94,7 @@ class LallCLI
   def setup_behavior_options(opts)
     opts.on('--version', 'Show version and exit') do
       puts "lall #{Lall::VERSION}"
-      exit
+      exit(0)
     end
     opts.on('-x', '--expose', 'Expose secrets (show actual secret values for secrets/group_secrets keys)') do
       @raw_options[:expose] = true

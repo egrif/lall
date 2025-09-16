@@ -215,15 +215,14 @@ class LallCLI
     # Add secrets from environment (if expose is enabled, fetch secret values)
     if env.secrets && !env.secrets.empty?
       search_data['secrets'] = {}
+      # Always store the secret keys for pattern matching
+      search_data['secrets']['keys'] = env.secrets.map(&:name)
       if @options[:expose]
         # Get secret values from the instantiated secret objects
         env.secrets.each do |secret|
           search_data['secrets'][secret.name] = secret.data
         end
-        # Also maintain the keys array for KeySearcher compatibility
       end
-      # Just store the secret keys for pattern matching
-      search_data['secrets']['keys'] = env.secrets.map(&:name)
     end
 
     # Add group secrets (find the group for this environment)
@@ -245,14 +244,13 @@ class LallCLI
     return unless group_secrets && !group_secrets.empty?
 
     search_data['group_secrets'] = {}
+    # Always store the group secret keys for pattern matching
+    search_data['group_secrets']['keys'] = group_secrets.map(&:name)
     if @options[:expose]
       # Get group secret values from the instantiated secret objects
       group_secrets.each do |secret|
         search_data['group_secrets'][secret.name] = secret.data
       end
-    else
-      # Just store the group secret keys for pattern matching
-      search_data['group_secrets']['keys'] = group_secrets.map(&:name)
     end
   rescue NoMethodError
     # Group data failed to load, skip group data

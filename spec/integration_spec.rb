@@ -218,6 +218,37 @@ RSpec.describe 'Integration Tests', :integration do
       expect(output).to include('secret_key')
       expect(output).not_to include('secret_value_123')  # Should not show actual secret value
     end
+
+    it 'exposes secrets with application flag when -x is used' do
+      output = capture_stdout do
+        begin
+          cli = LallCLI.new(['-a', 'greenhouse', '-m', 'secret_key', '-e', 'test-env1', '--no-cache', '-x'])
+          cli.run
+        rescue SystemExit => e
+          @exit_code = e.status
+        end
+      end
+
+      expect(@exit_code).to be_nil
+      expect(output).to include('secret_key')
+      expect(output).to include('secret_value_123')  # Should show actual secret value with -x
+    end
+
+    it 'shows secret placeholder with application flag when -x is not used' do
+      output = capture_stdout do
+        begin
+          cli = LallCLI.new(['-a', 'greenhouse', '-m', 'secret_key', '-e', 'test-env1', '--no-cache'])
+          cli.run
+        rescue SystemExit => e
+          @exit_code = e.status
+        end
+      end
+
+      expect(@exit_code).to be_nil
+      expect(output).to include('secret_key')
+      expect(output).to include('{SECRET}')  # Should show placeholder without -x
+      expect(output).not_to include('secret_value_123')  # Should not show actual secret value
+    end
   end
 
   describe 'Error handling' do

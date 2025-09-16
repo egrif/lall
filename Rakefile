@@ -8,7 +8,7 @@ task :spec do
   # Get explicit list of spec files excluding integration
   spec_files = Dir['spec/**/*_spec.rb'].reject { |f| f.include?('integration') }
   spec_files_args = spec_files.join(' ')
-  
+
   # Use backticks with explicit file list to avoid glob expansion issues
   output = `bundle exec rspec #{spec_files_args} 2>&1`
 
@@ -31,7 +31,7 @@ task :integration do
   # Get integration spec files explicitly
   integration_files = Dir['spec/**/*_spec.rb'].select { |f| f.include?('integration') }
   integration_files_args = integration_files.join(' ')
-  
+
   output = `bundle exec rspec #{integration_files_args} 2>&1`
   puts output
 
@@ -51,7 +51,7 @@ task :test do
   # Get all spec files explicitly
   all_spec_files = Dir['spec/**/*_spec.rb']
   all_spec_files_args = all_spec_files.join(' ')
-  
+
   output = `bundle exec rspec #{all_spec_files_args} 2>&1`
   puts output
 

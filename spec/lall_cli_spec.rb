@@ -222,6 +222,14 @@ RSpec.describe LallCLI do
       end
     end
 
+    context 'with version option' do
+      it 'displays version and exits' do
+        expect do
+          LallCLI.new(['--version'])
+        end.to output("lall #{Lall::VERSION}\n").to_stdout.and raise_error(SystemExit)
+      end
+    end
+
     context 'with different output formats' do
       let(:env_results) do
         {

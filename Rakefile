@@ -7,19 +7,26 @@ task :spec do
 
   # Get explicit list of spec files excluding integration
   spec_files = Dir['spec/**/*_spec.rb'].reject { |f| f.include?('integration') }
-  spec_files_args = spec_files.join(' ')
-
-  # Use backticks with explicit file list to avoid glob expansion issues
-  output = `bundle exec rspec #{spec_files_args} 2>&1`
-
+  puts "DEBUG: Found #{spec_files.length} spec files" if ENV['CI']
+  
+  # Use output parsing approach since system() also returns false due to RSpec's SystemExit handling
+  output = `bundle exec rspec #{spec_files.join(' ')} 2>&1`
   puts output
-
-  # Check if there were any failures in the output (more precise matching)
-  if output.match(/(\d+) examples?, 0 failures/) && !output.include?('failed')
+  
+  # More robust pattern matching for success detection
+  if output =~ /(\d+) examples?, 0 failures/ && 
+     !output.include?('failed') && 
+     !output.include?(' error') &&
+     !output.include?('Error:')
     puts 'All tests passed!'
     exit 0
   else
     puts 'Tests failed or had errors!'
+    puts "DEBUG: Pattern match failed - checking output:" if ENV['CI']
+    puts "  - Has '0 failures': #{output.include?('0 failures')}" if ENV['CI']
+    puts "  - Contains 'failed': #{output.include?('failed')}" if ENV['CI']
+    puts "  - Contains ' error': #{output.include?(' error')}" if ENV['CI']
+    puts "  - Contains 'Error:': #{output.include?('Error:')}" if ENV['CI']
     exit 1
   end
 end

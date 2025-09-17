@@ -4,6 +4,7 @@
 require 'optparse'
 require 'yaml'
 require 'csv'
+require 'fileutils'
 require 'lotus/runner'
 require 'lotus/entity'
 require 'lotus/environment'
@@ -208,6 +209,9 @@ class LallCLI
       truncate = @raw_options[:truncate] # Use raw options to avoid settings fallback
       export_data = format_export_data(export_format, successful_envs, env_results, truncate)
       if output_file
+        # Ensure the directory exists before writing
+        output_dir = File.dirname(output_file)
+        FileUtils.mkdir_p(output_dir)
         File.write(output_file, export_data)
         puts "Exported results to #{output_file} (#{export_format})"
       else

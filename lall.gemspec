@@ -29,13 +29,13 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = '>= 3.1.0'
 
   spec.add_dependency 'base64', '~> 0.2'
+  spec.add_dependency 'csv'
   spec.add_dependency 'digest', '~> 3.1'
   spec.add_dependency 'fileutils', '~> 1.7'
   spec.add_dependency 'moneta', '~> 1.6'
   spec.add_dependency 'open3', '~> 0.2'
   spec.add_dependency 'openssl', '~> 3.0'
   spec.add_dependency 'optparse', '~> 0.6'
-  spec.add_dependency 'csv'
   spec.add_dependency 'redis', '~> 5.0'
   spec.add_dependency 'yaml', '~> 0.3'
 

@@ -24,18 +24,19 @@ class LallCLI
   # Fetch results from entity set (used in tests and main logic)
   def fetch_results_from_entity_set(entity_set)
     entity_set.fetch_all
-    
+
     # Build search results from entity set
     env_results = {}
-    
+
     entity_set.environments.each do |env|
       search_data = build_search_data_for_entity(env, entity_set)
       results = perform_search(search_data, env.name)
       env_results[env.name] = results unless results.empty?
     end
-    
+
     env_results
   end
+
   def initialize(argv)
     @raw_options = {}
     setup_option_parser.parse!(argv)
@@ -203,17 +204,16 @@ class LallCLI
     if @options[:export]
       export_format = @options[:export]
       output_file = @options[:output_file]
-      # Ignore truncation for export unless explicitly set
-      truncate = @options[:truncate]
+      # Only use truncation for export if explicitly set by user
+      truncate = @raw_options[:truncate]  # Use raw options to avoid settings fallback
       export_data = format_export_data(export_format, successful_envs, env_results, truncate)
       if output_file
         File.write(output_file, export_data)
         puts "Exported results to #{output_file} (#{export_format})"
-        return
       else
         puts export_data
-        return
       end
+      return
     end
 
     display_results(successful_envs, env_results)
@@ -285,16 +285,16 @@ class LallCLI
   end
 
   def resolve_cli_behavior_options(resolved)
-  # CLI behavior options (with settings fallback)
-  cli_settings = @settings.cli_settings
-  resolved[:debug] = @raw_options[:debug] || cli_settings[:debug]
-  resolved[:truncate] = @raw_options[:truncate] || cli_settings[:truncate]
-  resolved[:expose] = @raw_options[:expose] || cli_settings[:expose]
-  resolved[:insensitive] = @raw_options[:insensitive] || cli_settings[:insensitive]
-  resolved[:path_also] = @raw_options[:path_also] || cli_settings[:path_also]
-  resolved[:pivot] = @raw_options[:pivot] || cli_settings[:pivot]
-  resolved[:export] = @raw_options[:export] if @raw_options.key?(:export)
-  resolved[:output_file] = @raw_options[:output_file] if @raw_options.key?(:output_file)
+    # CLI behavior options (with settings fallback)
+    cli_settings = @settings.cli_settings
+    resolved[:debug] = @raw_options[:debug] || cli_settings[:debug]
+    resolved[:truncate] = @raw_options[:truncate] || cli_settings[:truncate]
+    resolved[:expose] = @raw_options[:expose] || cli_settings[:expose]
+    resolved[:insensitive] = @raw_options[:insensitive] || cli_settings[:insensitive]
+    resolved[:path_also] = @raw_options[:path_also] || cli_settings[:path_also]
+    resolved[:pivot] = @raw_options[:pivot] || cli_settings[:pivot]
+    resolved[:export] = @raw_options[:export] if @raw_options.key?(:export)
+    resolved[:output_file] = @raw_options[:output_file] if @raw_options.key?(:output_file)
   end
 
   def resolve_cache_options(resolved)

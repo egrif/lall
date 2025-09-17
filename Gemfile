@@ -13,4 +13,5 @@ group :development, :test do
   gem 'simplecov', '~> 0.22', require: false
 end
 
+gem 'csv'
 gem 'redis', '~> 5.4'

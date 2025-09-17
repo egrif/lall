@@ -94,6 +94,65 @@ RSpec.describe LallCLI do
   end
 
   describe '#run' do
+    context 'with export functionality' do
+      let(:env_results) do
+        {
+          'env1' => [{ key: 'api_token', value: 'token1' }],
+          'env2' => [{ key: 'api_token', value: 'token2' }]
+        }
+      end
+
+      before do
+        # Mock entity-based system
+        entity_set = double('entity_set')
+        environments = [
+          double('env1', name: 'env1', data: { 'configs' => { 'api_token' => 'token1' } }),
+          double('env2', name: 'env2', data: { 'configs' => { 'api_token' => 'token2' } })
+        ]
+        allow(entity_set).to receive(:fetch_all)
+        allow(entity_set).to receive(:environments).and_return(environments)
+        allow_any_instance_of(LallCLI).to receive(:create_entity_set).and_return(entity_set)
+        allow_any_instance_of(LallCLI).to receive(:fetch_results_from_entity_set).and_return(env_results)
+      end
+
+      it 'exports results as CSV to stdout with --format' do
+        cli = LallCLI.new(['-m', 'api_token', '-e', 'env1,env2', '--format=csv'])
+        expect { cli.run }.to output(/Key,env1,env2\napi_token,token1,token2/).to_stdout
+      end
+
+      it 'exports results as JSON to stdout with -f' do
+        cli = LallCLI.new(['-m', 'api_token', '-e', 'env1,env2', '-fjson'])
+        expect { cli.run }.to output(/"env1":\s*{\s*"api_token":\s*"token1"/).to_stdout
+      end
+
+      it 'exports results as YAML to stdout with --format=yaml' do
+        cli = LallCLI.new(['-m', 'api_token', '-e', 'env1,env2', '--format=yaml'])
+        expect { cli.run }.to output(/env1:\s*api_token: token1/).to_stdout
+      end
+
+      it 'exports results as TXT to stdout with -ftxt' do
+        cli = LallCLI.new(['-m', 'api_token', '-e', 'env1,env2', '-ftxt'])
+        expect { cli.run }.to output(/Key\tenv1\tenv2\napi_token\ttoken1\ttoken2/).to_stdout
+      end
+
+      it 'writes exported results to file with --output-file' do
+        file = 'tmp/test_export.txt'
+        File.delete(file) if File.exist?(file)
+        cli = LallCLI.new(['-m', 'api_token', '-e', 'env1,env2', '--format=txt', "--output-file=#{file}"])
+        expect { cli.run }.to output(/Exported results to/).to_stdout
+        expect(File.read(file)).to include("Key\tenv1\tenv2\napi_token\ttoken1\ttoken2")
+        File.delete(file)
+      end
+
+      it 'writes exported results to file with -o' do
+        file = 'tmp/test_export2.txt'
+        File.delete(file) if File.exist?(file)
+        cli = LallCLI.new(['-m', 'api_token', '-e', 'env1,env2', '-ftxt', "-o#{file}"])
+        expect { cli.run }.to output(/Exported results to/).to_stdout
+        expect(File.read(file)).to include("Key\tenv1\tenv2\napi_token\ttoken1\ttoken2")
+        File.delete(file)
+      end
+    end
     context 'with invalid arguments' do
       it 'exits with error when match is missing' do
         cli = LallCLI.new(['-e', 'prod'])

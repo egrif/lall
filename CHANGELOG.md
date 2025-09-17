@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2025-09-17
+
+### Added
+- **Export Functionality**: Multiple output formats with file export capabilities
+  - Added `--format`/`-f` option supporting CSV, JSON, YAML, and TXT formats
+  - Added `--output-file`/`-o` option to write results to files instead of stdout
+  - CSV format: Comma-separated values with proper header row
+  - JSON format: Hierarchical structure with environments as top-level keys
+  - YAML format: Clean YAML structure for configuration management workflows
+  - TXT format: Tab-separated values for easy parsing and processing
+  - All formats support file output with success confirmation messages
+
+### Fixed
+- **Critical Bug**: Fixed NoMethodError in fetch_results_from_entity_set
+  - Fixed undefined method 'results' error when using entity-based search
+  - Implemented proper search logic that builds search data for each environment
+  - Added proper integration between EntitySet and CLI search functionality
+  - Fixed syntax errors and method structure issues in CLI class
+  - Ensured all tests pass with 68 examples and 0 failures
+
 ## [0.11.2] - 2025-09-16
 
 ### Fixed

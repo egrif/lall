@@ -9,6 +9,7 @@ AllCops:
     - 'tmp/**/*'
     - 'coverage/**/*'
     - 'spec/**/*'  # Skip spec files for now to avoid RSpec cop issues
+    - 'show_yaml_output.rb'  # Demo file, not part of the gem
 
 # Prefer single quotes for consistency
 Style/StringLiterals:

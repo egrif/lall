@@ -3,6 +3,8 @@
 # lib/lall/cli.rb
 require 'optparse'
 require 'yaml'
+require 'csv'
+require 'fileutils'
 require 'lotus/runner'
 require 'lotus/entity'
 require 'lotus/environment'
@@ -20,6 +22,22 @@ SETTINGS = YAML.load_file(SETTINGS_PATH) if File.exist?(SETTINGS_PATH)
 ENV_GROUPS = SETTINGS ? SETTINGS['groups'] : {}
 
 class LallCLI
+  # Fetch results from entity set (used in tests and main logic)
+  def fetch_results_from_entity_set(entity_set)
+    entity_set.fetch_all
+
+    # Build search results from entity set
+    env_results = {}
+
+    entity_set.environments.each do |env|
+      search_data = build_search_data_for_entity(env, entity_set)
+      results = perform_search(search_data, env.name)
+      env_results[env.name] = results unless results.empty?
+    end
+
+    env_results
+  end
+
   def initialize(argv)
     @raw_options = {}
     setup_option_parser.parse!(argv)
@@ -88,6 +106,13 @@ class LallCLI
     opts.on('-t LEN', '--truncate=LEN', Integer,
             'Truncate output values longer than LEN (default 40) with ellipsis in the middle') do |v|
       @raw_options[:truncate] = v
+    end
+    opts.on('-fFORMAT', '--format=FORMAT', %i[csv json yaml txt],
+            'Export results to file in FORMAT (csv, json, yaml, txt)') do |v|
+      @raw_options[:export] = v
+    end
+    opts.on('-oPATH', '--output-file=PATH', 'Write exported results to PATH (default: stdout)') do |v|
+      @raw_options[:output_file] = v
     end
   end
 
@@ -174,33 +199,33 @@ class LallCLI
     entity_set.fetch_all
 
     env_results = fetch_results_from_entity_set(entity_set)
-    # Only pass environments that have results (excludes failed environments)
     successful_envs = env_results.keys
+
+    # Export logic
+    if @options[:export]
+      export_format = @options[:export]
+      output_file = @options[:output_file]
+      # Only use truncation for export if explicitly set by user
+      truncate = @raw_options[:truncate] # Use raw options to avoid settings fallback
+      export_data = format_export_data(export_format, successful_envs, env_results, truncate)
+      if output_file
+        # Ensure the directory exists before writing
+        output_dir = File.dirname(output_file)
+        FileUtils.mkdir_p(output_dir)
+        File.write(output_file, export_data)
+        puts "Exported results to #{output_file} (#{export_format})"
+      else
+        puts export_data
+      end
+      return
+    end
+
     display_results(successful_envs, env_results)
   end
 
   def create_entity_set
     require_relative '../lotus/entity_set'
-    Lotus::EntitySet.new(@settings)
-  end
-
-  def fetch_results_from_entity_set(entity_set)
-    env_results = {}
-
-    # Entity data should already be loaded by fetch_all in run method
-    entity_set.environments.each do |env|
-      # Skip environments that failed to load data
-      next unless env.data
-
-      # Build search data in the format expected by KeySearcher
-      search_data = build_search_data_for_entity(env, entity_set)
-
-      # Perform search using the constructed search data
-      result = perform_search(search_data, env.name)
-      env_results[env.name] = result
-    end
-
-    env_results
+    Lotus::EntitySet.new(nil, @settings_manager)
   end
 
   def build_search_data_for_entity(env, entity_set)
@@ -272,6 +297,8 @@ class LallCLI
     resolved[:insensitive] = @raw_options[:insensitive] || cli_settings[:insensitive]
     resolved[:path_also] = @raw_options[:path_also] || cli_settings[:path_also]
     resolved[:pivot] = @raw_options[:pivot] || cli_settings[:pivot]
+    resolved[:export] = @raw_options[:export] if @raw_options.key?(:export)
+    resolved[:output_file] = @raw_options[:output_file] if @raw_options.key?(:output_file)
   end
 
   def resolve_cache_options(resolved)
@@ -312,14 +339,16 @@ class LallCLI
       redis_url: cache_settings[:redis_url]
     }
 
-    @cache_manager = if cache_options[:enabled] == false
-                       Lall::NullCacheManager.new
-                     else
-                       Lall::CacheManager.instance(cache_options)
-                     end
-  rescue StandardError => e
-    warn "Warning: Cache initialization failed (#{e.message}). Disabling cache."
-    @cache_manager = Lall::NullCacheManager.new
+    begin
+      @cache_manager = if cache_options[:enabled] == false
+                         Lall::NullCacheManager.new
+                       else
+                         Lall::CacheManager.instance(cache_options)
+                       end
+    rescue StandardError => e
+      warn "Warning: Cache initialization failed (#{e.message}). Disabling cache."
+      @cache_manager = Lall::NullCacheManager.new
+    end
   end
 
   def clear_cache_and_exit
@@ -507,6 +536,86 @@ class LallCLI
     end
 
     format_and_display_table(envs, env_results, all_keys, all_paths)
+  end
+
+  # Export helpers
+  def format_export_data(format, envs, env_results, truncate = nil)
+    case format
+    when :csv
+      export_csv(envs, env_results, truncate)
+    when :json
+      export_json(envs, env_results, truncate)
+    when :yaml
+      export_yaml(envs, env_results, truncate)
+    when :txt
+      export_txt(envs, env_results, truncate)
+    else
+      raise "Unsupported export format: #{format}"
+    end
+  end
+
+  def export_csv(envs, env_results, truncate)
+    require 'csv'
+    all_keys = extract_all_keys(env_results)
+    CSV.generate do |csv|
+      csv << (['Key'] + envs)
+      all_keys.each do |key|
+        row = [key]
+        envs.each do |env|
+          match = env_results[env].find { |r| r[:key] == key }
+          value = match ? match[:value].to_s : ''
+          value = TableFormatter.truncate_middle(value, truncate) if truncate
+          row << value
+        end
+        csv << row
+      end
+    end
+  end
+
+  def export_json(envs, env_results, truncate)
+    require 'json'
+    data = {}
+    envs.each do |env|
+      data[env] = {}
+      env_results[env].each do |r|
+        value = r[:value].to_s
+        value = TableFormatter.truncate_middle(value, truncate) if truncate
+        data[env][r[:key]] = value
+      end
+    end
+    JSON.pretty_generate(data)
+  end
+
+  def export_yaml(envs, env_results, truncate)
+    require 'yaml'
+    data = {}
+    envs.each do |env|
+      data[env] = {}
+      env_results[env].each do |r|
+        value = r[:value].to_s
+        value = TableFormatter.truncate_middle(value, truncate) if truncate
+        data[env][r[:key]] = value
+      end
+    end
+    YAML.dump(data)
+  end
+
+  def export_txt(envs, env_results, truncate)
+    all_keys = extract_all_keys(env_results)
+    lines = []
+    header = ['Key'] + envs
+    lines << header.join("\t")
+    all_keys.each do |key|
+      row = [key]
+      envs.each do |env|
+        match = env_results[env].find { |r| r[:key] == key }
+        value = match ? match[:value].to_s : ''
+        value = TableFormatter.truncate_middle(value, truncate) if truncate
+        row << value
+      end
+      lines << row.join("\t")
+    end
+    lines.join("\n")
   end
 
   def extract_all_keys(env_results)

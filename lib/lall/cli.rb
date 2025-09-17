@@ -205,7 +205,7 @@ class LallCLI
       export_format = @options[:export]
       output_file = @options[:output_file]
       # Only use truncation for export if explicitly set by user
-      truncate = @raw_options[:truncate]  # Use raw options to avoid settings fallback
+      truncate = @raw_options[:truncate] # Use raw options to avoid settings fallback
       export_data = format_export_data(export_format, successful_envs, env_results, truncate)
       if output_file
         File.write(output_file, export_data)

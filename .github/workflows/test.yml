@@ -25,11 +25,12 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: false
+        bundler: ${{ matrix.ruby-version == '2.7' && 'none' || 'default' }}
 
     - name: Install compatible bundler for Ruby 2.7
       if: matrix.ruby-version == '2.7'
       run: |
-        gem install bundler -v "< 3"
+        gem install bundler -v "~> 2.4.0"
         
     - name: Configure bundler and install dependencies
       run: |

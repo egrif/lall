@@ -531,6 +531,16 @@ class LallCLI
     exit 0
   end
 
+  # Ruby 2.7 compatible YAML file loader
+  def safe_load_yaml_file(file_path)
+    if YAML.respond_to?(:safe_load_file)
+      YAML.safe_load_file(file_path)
+    else
+      # Fallback for Ruby 2.7 and older Psych versions
+      YAML.safe_load(File.read(file_path))
+    end
+  end
+
   def update_user_settings_and_exit
     user_settings_path = Lall::SettingsManager::USER_SETTINGS_PATH
     default_settings_path = File.join(__dir__, '../../config/settings.yml')
@@ -544,11 +554,11 @@ class LallCLI
       exit 1
     end
 
-    default_settings = YAML.safe_load_file(default_settings_path)
+    default_settings = safe_load_yaml_file(default_settings_path)
 
     # Load existing user settings or create empty hash
     user_settings = if File.exist?(user_settings_path)
-                      YAML.safe_load_file(user_settings_path) || {}
+                      safe_load_yaml_file(user_settings_path) || {}
                     else
                       {}
                     end

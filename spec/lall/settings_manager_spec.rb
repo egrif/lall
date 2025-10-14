@@ -234,4 +234,38 @@ RSpec.describe Lall::SettingsManager do
       expect(content).to eq("existing: content\n")
     end
   end
+
+  describe 'secret prefix/suffix settings' do
+    let(:cli_options) { { secret_prefix: 'test_', secret_suffix: '_sec' } }
+    let(:manager) { described_class.new(cli_options) }
+    
+    before do
+      stub_const('Lall::SettingsManager::USER_SETTINGS_PATH', '/nonexistent/path/settings.yml')
+    end
+
+    it 'includes secret prefix/suffix in cli_settings' do
+      settings = manager.cli_settings
+      
+      expect(settings[:secret_prefix]).to eq('test_')
+      expect(settings[:secret_suffix]).to eq('_sec')
+    end
+
+    it 'includes secret prefix/suffix in output_settings' do
+      settings = manager.output_settings
+      
+      expect(settings[:secret_prefix]).to eq('test_')
+      expect(settings[:secret_suffix]).to eq('_sec')
+    end
+
+    context 'when no CLI options provided' do
+      let(:cli_options) { {} }
+      
+      it 'uses default null values for secret prefix/suffix' do
+        settings = manager.cli_settings
+        
+        expect(settings[:secret_prefix]).to be_nil
+        expect(settings[:secret_suffix]).to be_nil
+      end
+    end
+  end
 end

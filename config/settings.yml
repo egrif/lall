@@ -74,6 +74,12 @@ output:
   # Placeholder text shown for secret values when not exposing secrets (default: '{SECRET}')
   secret_placeholder: '{SECRET}'
   
+  # Secret name prefixes and suffixes for differentiation from configs
+  # Both are null by default (no prefix/suffix applied)
+  # Can be overridden by --secret-prefix/--secret-postfix CLI flags
+  secret_prefix: null
+  secret_suffix: null
+  
   # Default truncation limit for table output (default: 0 = no truncation)
   # Can be overridden by -t/--truncate flag
   # When 0, truncation is disabled

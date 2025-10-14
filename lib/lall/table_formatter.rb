@@ -57,7 +57,33 @@ class TableFormatter
 
   def calculate_display_width(text)
     # Remove ANSI color codes when calculating width
-    text.gsub(/\e\[[0-9;]*m/, '').length
+    clean_text = text.gsub(/\e\[[0-9;]*m/, '')
+
+    # Calculate actual display width accounting for wide characters (emojis, etc.)
+    display_width = 0
+    clean_text.each_char do |char|
+      # Wide characters (including emojis) typically take 2 columns
+      # This includes most emojis, CJK characters, etc.
+      display_width += if (char.ord > 0x1F600 && char.ord < 0x1F64F) ||  # Emoticons
+                          (char.ord > 0x1F300 && char.ord < 0x1F5FF) ||  # Misc Symbols and Pictographs
+                          (char.ord > 0x1F680 && char.ord < 0x1F6FF) ||  # Transport and Map
+                          (char.ord > 0x2600 && char.ord < 0x26FF) ||    # Misc symbols
+                          (char.ord > 0x2700 && char.ord < 0x27BF) ||    # Dingbats
+                          (char.ord > 0x1F900 && char.ord < 0x1F9FF)     # Supplemental Symbols and Pictographs
+                         2
+                       else
+                         1
+                       end
+    end
+
+    display_width
+  end
+
+  def pad_string_to_width(text, target_width)
+    actual_width = calculate_display_width(text)
+    padding_needed = target_width - actual_width
+    padding_needed = 0 if padding_needed.negative?
+    "#{text}#{' ' * padding_needed}"
   end
 
   def compute_col_widths
@@ -72,7 +98,7 @@ class TableFormatter
     @columns.map do |col|
       header_str = "#{col[:path]}.#{col[:key]}"
       max_data_width = calculate_max_data_width_for_path_key(col, header_str)
-      [header_str.length, max_data_width].max
+      [calculate_display_width(header_str), max_data_width].max
     end
   end
 
@@ -80,7 +106,7 @@ class TableFormatter
     @columns.map do |k|
       header_str = k.to_s
       max_data_width = calculate_max_data_width_for_key(k, header_str)
-      [header_str.length, max_data_width].max
+      [calculate_display_width(header_str), max_data_width].max
     end
   end
 
@@ -100,12 +126,13 @@ class TableFormatter
 
   def calculate_value_width(match, header_str)
     value_str = extract_value_string(match)
-    trunc_len = @truncate&.positive? ? [@truncate, header_str.length].max : nil
+    header_display_width = calculate_display_width(header_str)
+    trunc_len = @truncate&.positive? ? [@truncate, header_display_width].max : nil
 
     if trunc_len
-      [header_str.length, TableFormatter.truncate_middle(value_str, trunc_len).length].max
+      [header_display_width, calculate_display_width(TableFormatter.truncate_middle(value_str, trunc_len))].max
     else
-      [header_str.length, value_str.length].max
+      [header_display_width, calculate_display_width(value_str)].max
     end
   end
 
@@ -128,14 +155,15 @@ class TableFormatter
   end
 
   def build_header(col_widths)
-    header = format("| %-#{@env_width}s |", 'Env')
+    header = "| #{pad_string_to_width('Env', @env_width)} |"
     if @path_also
       @columns.each_with_index do |col, i|
-        header += format(" %-#{col_widths[i]}s |", "#{col[:path]}.#{col[:key]}")
+        col_text = "#{col[:path]}.#{col[:key]}"
+        header += " #{pad_string_to_width(col_text, col_widths[i])} |"
       end
     else
       @columns.each_with_index do |k, i|
-        header += format(" %-#{col_widths[i]}s |", k.to_s)
+        header += " #{pad_string_to_width(k.to_s, col_widths[i])} |"
       end
     end
     header
@@ -148,7 +176,7 @@ class TableFormatter
     @columns.each_with_index { |_, i| sep += "-#{'-' * col_widths[i]}-|" }
     puts sep
     @envs.each do |env|
-      row = format("| %-#{@env_width}s |", env)
+      row = "| #{pad_string_to_width(env, @env_width)} |"
       row += build_table_row_columns(env, col_widths)
       puts row
     end
@@ -233,7 +261,7 @@ class TableFormatter
   end
 
   def print_key_table(all_keys, envs, env_results)
-    key_width = ['Key'.length, *all_keys.map(&:length)].max
+    key_width = ['Key'.length, *all_keys.map { |k| calculate_display_width(k) }].max
     env_widths = envs.map do |env|
       max_value_width = env_results[env].map do |r|
         value_str = r[:value].is_a?(String) ? r[:value] : r[:value].inspect
@@ -247,15 +275,15 @@ class TableFormatter
     end
 
     # Header
-    header = format("| %-#{key_width}s |", 'Key')
-    envs.each_with_index { |env, i| header += format(" %-#{env_widths[i]}s |", env) }
+    header = "| #{pad_string_to_width('Key', key_width)} |"
+    envs.each_with_index { |env, i| header += " #{pad_string_to_width(env, env_widths[i])} |" }
     puts header
     sep = "|-#{'-' * key_width}-|"
     envs.each_with_index { |_, i| sep += "-#{'-' * env_widths[i]}-|" }
     puts sep
 
     all_keys.each do |key|
-      row = format("| %-#{key_width}s |", key)
+      row = "| #{pad_string_to_width(key, key_width)} |"
       envs.each_with_index do |env, i|
         match = env_results[env].find { |r| r[:key] == key }
         value_str = if match

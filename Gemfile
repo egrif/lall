@@ -7,7 +7,7 @@ gemspec
 
 group :development, :test do
   gem 'pry', '~> 0.14'
-  
+
   # pry-byebug requires different versions based on Ruby version
   if RUBY_VERSION >= '3.1'
     gem 'pry-byebug', '~> 3.10'

@@ -1,9 +1,33 @@
 # config/settings.yml
+
+# Color reference for terminal output
+# These are the basic ANSI color names and codes supported in bash terminals
+color_reference:
+  # Control sequences
+  reset: "\e[0m"
+  # Regular colors
+  black: "\e[30m"
+  red: "\e[31m"
+  green: "\e[32m"
+  yellow: "\e[33m"
+  blue: "\e[34m"
+  magenta: "\e[35m"
+  cyan: "\e[36m"
+  white: "\e[37m"
+  # Bright colors
+  bright_black: "\e[90m"
+  bright_red: "\e[91m"
+  bright_green: "\e[92m"
+  bright_yellow: "\e[93m"
+  bright_blue: "\e[94m"
+  bright_magenta: "\e[95m"
+  bright_cyan: "\e[96m"
+  bright_white: "\e[97m"
+
 groups:
   staging:
     - staging
     - staging-s2
-    - staging-s3
   prod-us:
     - prod
     - prod-s2
@@ -49,6 +73,11 @@ cache:
 output:
   # Placeholder text shown for secret values when not exposing secrets (default: '{SECRET}')
   secret_placeholder: '{SECRET}'
+  
+  # Default truncation limit for table output (default: 0 = no truncation)
+  # Can be overridden by -t/--truncate flag
+  # When 0, truncation is disabled
+  truncate: 0
   
   # Color settings for table output
   colors:

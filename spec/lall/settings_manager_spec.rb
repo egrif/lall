@@ -120,6 +120,11 @@ RSpec.describe Lall::SettingsManager do
   end
 
   describe '#cli_settings' do
+    # Stub user settings path to avoid using actual user settings file
+    before do
+      stub_const('Lall::SettingsManager::USER_SETTINGS_PATH', '/nonexistent/path/settings.yml')
+    end
+    
     let(:cli_options) { { debug: true, truncate: 100 } }
     let(:manager) { described_class.new(cli_options) }
 
@@ -127,11 +132,23 @@ RSpec.describe Lall::SettingsManager do
       settings = manager.cli_settings
       
       expect(settings[:debug]).to be true
-      expect(settings[:truncate]).to eq(100)
+      expect(settings[:truncate]).to eq(100)  # CLI option should override default
       expect(settings[:expose]).to be false
       expect(settings[:insensitive]).to be false
       expect(settings[:path_also]).to be false
       expect(settings[:pivot]).to be false
+    end
+
+    context 'when no truncate CLI option is provided' do
+      let(:cli_options) { { debug: true } }
+      let(:manager) { described_class.new(cli_options) }
+
+      it 'uses the settings default for truncate' do
+        settings = manager.cli_settings
+        
+        expect(settings[:truncate]).to eq(0)  # Should use settings default
+        expect(settings[:debug]).to be true
+      end
     end
   end
 

@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2024-10-14
+
+### Added
+- **Settings Enhancement Framework**: Comprehensive configuration system improvements
+  - Added `truncate: 0` default to disable truncation by default in `config/settings.yml`
+  - Updated CLI to use settings-based defaults when no `--truncate` flag is provided
+  - Zero truncation value now properly disables text truncation completely
+  
+- **Color Reference System**: Full ANSI color code management
+  - Added comprehensive `color_reference` section to settings with all basic bash colors
+  - Includes regular colors (black, red, green, yellow, blue, magenta, cyan, white)
+  - Includes bright color variants (bright_black, bright_red, etc.)
+  - Added reset sequence (`\e[0m`) for proper color management
+  - Integrated color reference system into TableFormatter colorization logic
+  
+- **User Settings Management**: New `--update-settings` feature
+  - Merges current default settings into user settings file at `~/.lall/settings.yml`
+  - Preserves existing user customizations while adding new default keys
+  - Uses deep merge algorithm to handle nested configuration structures
+  - Creates user settings file if it doesn't exist
+  - Provides clear feedback with file path confirmation
+
+### Changed
+- **Settings Priority Resolution**: Enhanced SettingsManager for better CLI option handling
+  - Fixed truncate option resolution to properly prioritize CLI arguments over settings
+  - Improved settings hierarchy: CLI options → ENV vars → User settings → Gem defaults
+  - Enhanced dot notation support for nested settings access
+
+### Fixed
+- **Test Suite Stability**: Resolved test isolation issues
+  - Fixed settings manager tests to avoid user settings file interference
+  - Added proper test stubbing for user settings path
+  - Ensured all 70 tests pass consistently
+- **Code Quality**: All RuboCop style violations resolved
+
 ## [0.12.0] - 2025-09-17
 
 ### Added

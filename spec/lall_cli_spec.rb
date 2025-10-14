@@ -185,7 +185,7 @@ RSpec.describe LallCLI do
 
         expected_output = <<~OUTPUT
           Available groups:
-            staging: staging, staging-s2, staging-s3
+            staging: staging, staging-s2
             prod-us: prod, prod-s2, prod-s3, prod-s4, prod-s5, prod-s6, prod-s7, prod-s8, prod-s9
             prod-all: prod, prod-s2, prod-s3, prod-s4, prod-s5, prod-s6, prod-s7, prod-s8, prod-s9, prod-s201, prod-s101
         OUTPUT
@@ -197,6 +197,14 @@ RSpec.describe LallCLI do
         cli = LallCLI.new(['-g', 'list'])
 
         expect { cli.run }.not_to raise_error
+      end
+    end
+
+    describe 'with settings management' do
+      it 'updates user settings when --update-settings is used' do
+        cli = LallCLI.new(['--update-settings'])
+
+        expect { cli.run }.to output(/✅ Updated user settings file/).to_stdout.and raise_error(SystemExit)
       end
     end
 

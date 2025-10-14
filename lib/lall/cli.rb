@@ -104,7 +104,7 @@ class LallCLI
       @raw_options[:pivot] = true
     end
     opts.on('-t LEN', '--truncate=LEN', Integer,
-            'Truncate output values longer than LEN (default 40) with ellipsis in the middle') do |v|
+            'Truncate output values longer than LEN (default: 0=no truncation) with ellipsis in the middle') do |v|
       @raw_options[:truncate] = v
     end
     opts.on('-fFORMAT', '--format=FORMAT', %i[csv json yaml txt],
@@ -128,6 +128,9 @@ class LallCLI
     opts.on('--debug-settings', 'Show settings resolution and exit') { @raw_options[:debug_settings] = true }
     opts.on('--show-settings', 'Show all resolved settings and exit') { @raw_options[:show_settings] = true }
     opts.on('--init-settings', 'Initialize user settings file and exit') { @raw_options[:init_settings] = true }
+    opts.on('--update-settings', 'Merge default settings into user settings file and exit') do
+      @raw_options[:update_settings] = true
+    end
     setup_cache_options(opts)
   end
 
@@ -178,6 +181,9 @@ class LallCLI
 
     # Handle init settings command
     init_user_settings_and_exit if @raw_options[:init_settings]
+
+    # Handle update settings command
+    update_user_settings_and_exit if @raw_options[:update_settings]
 
     # Handle cache-specific commands
     if @options[:clear_cache]
@@ -494,12 +500,76 @@ class LallCLI
     puts 'You can now customize your default settings by editing this file.'
     puts 'Examples:'
     puts '  - Set default cache TTL: cache.ttl: 7200'
-    puts '  - Set default truncation: output.truncate: 100'
+    puts '  - Set default truncation: output.truncate: 50  # 0 = no truncation'
     puts '  - Enable debug by default: output.debug: true'
     puts ''
     puts "Run 'lall --debug-settings' to see how settings are resolved."
     exit 0
   end
+
+  def update_user_settings_and_exit
+    user_settings_path = Lall::SettingsManager::USER_SETTINGS_PATH
+    default_settings_path = File.join(__dir__, '../../config/settings.yml')
+
+    # Ensure user settings directory exists
+    FileUtils.mkdir_p(File.dirname(user_settings_path))
+
+    # Load default settings
+    unless File.exist?(default_settings_path)
+      puts "❌ Default settings file not found at: #{default_settings_path}"
+      exit 1
+    end
+
+    default_settings = YAML.safe_load_file(default_settings_path)
+
+    # Load existing user settings or create empty hash
+    user_settings = if File.exist?(user_settings_path)
+                      YAML.safe_load_file(user_settings_path) || {}
+                    else
+                      {}
+                    end
+
+    # Deep merge default settings into user settings
+    merged_settings = deep_merge_settings(default_settings, user_settings)
+
+    # Write merged settings back to user file
+    File.write(user_settings_path, YAML.dump(merged_settings))
+
+    puts "✅ Updated user settings file at: #{user_settings_path}"
+    puts ''
+    puts 'New default settings have been merged into your user settings.'
+    puts 'Your existing customizations have been preserved.'
+    puts ''
+    puts "Run 'lall --show-settings' to see all current settings."
+    exit 0
+  end
+
+  private
+
+  def deep_merge_settings(default_hash, user_hash)
+    # Start with a copy of the default settings
+    result = default_hash.dup
+
+    # Merge user settings, preserving user values but adding new defaults
+    user_hash.each do |key, value|
+      result[key] = if result.key?(key)
+                      # If both have the key and both values are hashes, merge recursively
+                      if result[key].is_a?(Hash) && value.is_a?(Hash)
+                        deep_merge_settings(result[key], value)
+                      else
+                        # User value takes precedence
+                        value
+                      end
+                    else
+                      # Key doesn't exist in defaults, add user value
+                      value
+                    end
+    end
+
+    result
+  end
+
+  public
 
   def validate_options
     return if valid_option_combination?
@@ -564,7 +634,7 @@ class LallCLI
         envs.each do |env|
           match = env_results[env].find { |r| r[:key] == key }
           value = match ? match[:value].to_s : ''
-          value = TableFormatter.truncate_middle(value, truncate) if truncate
+          value = TableFormatter.truncate_middle(value, truncate) if truncate&.positive?
           row << value
         end
         csv << row

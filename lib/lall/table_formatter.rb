@@ -39,7 +39,20 @@ class TableFormatter
     # Convert color name to symbol if it's a string
     color_name = color_name.to_sym if color_name.is_a?(String)
 
-    "#{COLORS[color_name]}#{value_str}#{COLORS[:reset]}"
+    # Get color codes from settings color_reference or fallback to hardcoded COLORS
+    color_code = if @settings
+                   @settings.get("color_reference.#{color_name}", COLORS[color_name])
+                 else
+                   COLORS[color_name]
+                 end
+
+    reset_code = if @settings
+                   @settings.get('color_reference.reset', COLORS[:reset])
+                 else
+                   COLORS[:reset]
+                 end
+
+    "#{color_code}#{value_str}#{reset_code}"
   end
 
   def calculate_display_width(text)
@@ -87,7 +100,7 @@ class TableFormatter
 
   def calculate_value_width(match, header_str)
     value_str = extract_value_string(match)
-    trunc_len = @truncate ? [@truncate, header_str.length].max : nil
+    trunc_len = @truncate&.positive? ? [@truncate, header_str.length].max : nil
 
     if trunc_len
       [header_str.length, TableFormatter.truncate_middle(value_str, trunc_len).length].max
@@ -165,7 +178,7 @@ class TableFormatter
                 else
                   ''
                 end
-    value_str = TableFormatter.truncate_middle(value_str, col_width) if @truncate
+    value_str = TableFormatter.truncate_middle(value_str, col_width) if @truncate&.positive?
     colored_value_str = colorize_value(value_str, match&.[](:color))
     display_width = calculate_display_width(colored_value_str)
     padding = col_width - display_width
@@ -180,7 +193,7 @@ class TableFormatter
     env_widths = envs.map do |env|
       max_value_width = env_results[env].map do |r|
         value_str = r[:value].is_a?(String) ? r[:value] : r[:value].inspect
-        if @truncate
+        if @truncate&.positive?
           TableFormatter.truncate_middle(value_str, @truncate).length
         else
           value_str.length
@@ -207,7 +220,7 @@ class TableFormatter
                       else
                         ''
                       end
-          value_str = TableFormatter.truncate_middle(value_str, @truncate) if @truncate
+          value_str = TableFormatter.truncate_middle(value_str, @truncate) if @truncate&.positive?
           colored_value_str = colorize_value(value_str, match&.[](:color))
           display_width = calculate_display_width(colored_value_str)
           padding = env_widths[i] - display_width
@@ -224,7 +237,7 @@ class TableFormatter
     env_widths = envs.map do |env|
       max_value_width = env_results[env].map do |r|
         value_str = r[:value].is_a?(String) ? r[:value] : r[:value].inspect
-        if @truncate
+        if @truncate&.positive?
           TableFormatter.truncate_middle(value_str, @truncate).length
         else
           value_str.length
@@ -250,7 +263,7 @@ class TableFormatter
                     else
                       ''
                     end
-        value_str = TableFormatter.truncate_middle(value_str, @truncate) if @truncate
+        value_str = TableFormatter.truncate_middle(value_str, @truncate) if @truncate&.positive?
         colored_value_str = colorize_value(value_str, match&.[](:color))
         display_width = calculate_display_width(colored_value_str)
         padding = env_widths[i] - display_width

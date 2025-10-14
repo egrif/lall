@@ -94,7 +94,7 @@ module Lall
     def cli_settings
       {
         debug: parse_boolean(get('debug', false)),
-        truncate: get('truncate', 40).to_i,
+        truncate: (@cli_options[:truncate] || get('output.truncate', 0)).to_i,
         expose: parse_boolean(get('expose', false)),
         insensitive: parse_boolean(get('insensitive', false)),
         path_also: parse_boolean(get('path_also', false)),

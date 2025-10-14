@@ -6,15 +6,16 @@ source 'https://rubygems.org'
 gemspec
 
 group :development, :test do
-  gem 'pry', '~> 0.14'
-
-  # pry-byebug requires different versions based on Ruby version
+  # pry and pry-byebug versions must be compatible
   if RUBY_VERSION >= '3.1'
+    gem 'pry', '~> 0.14'
     gem 'pry-byebug', '~> 3.10'
   elsif RUBY_VERSION >= '3.0'
+    gem 'pry', '~> 0.13.0'
     gem 'pry-byebug', '~> 3.9.0'
   else
-    # For Ruby 2.7, use an older compatible version
+    # For Ruby 2.7, use older compatible versions
+    gem 'pry', '~> 0.13.0'
     gem 'pry-byebug', '~> 3.8.0'
   end
 

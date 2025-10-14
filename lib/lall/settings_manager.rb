@@ -23,7 +23,9 @@ module Lall
       'redis_url' => 'REDIS_URL',
       'debug' => 'LALL_DEBUG',
       'truncate' => 'LALL_TRUNCATE',
-      'expose' => 'LALL_EXPOSE'
+      'expose' => 'LALL_EXPOSE',
+      'secret_prefix' => 'LALL_SECRET_PREFIX',
+      'secret_suffix' => 'LALL_SECRET_SUFFIX'
     }.freeze
 
     # Thread-safe singleton instance management
@@ -98,14 +100,18 @@ module Lall
         expose: parse_boolean(get('expose', false)),
         insensitive: parse_boolean(get('insensitive', false)),
         path_also: parse_boolean(get('path_also', false)),
-        pivot: parse_boolean(get('pivot', false))
+        pivot: parse_boolean(get('pivot', false)),
+        secret_prefix: @cli_options[:secret_prefix] || get('output.secret_prefix'),
+        secret_suffix: @cli_options[:secret_suffix] || get('output.secret_suffix')
       }
     end
 
     # Get all output formatting settings as a hash
     def output_settings
       {
-        secret_placeholder: get('output.secret_placeholder', '{SECRET}').to_s
+        secret_placeholder: get('output.secret_placeholder', '{SECRET}').to_s,
+        secret_prefix: @cli_options[:secret_prefix] || get('output.secret_prefix'),
+        secret_suffix: @cli_options[:secret_suffix] || get('output.secret_suffix')
       }
     end
 

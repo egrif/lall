@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2024-10-14
+
+### Added
+- **Secret Prefix/Suffix Management**: Advanced secret differentiation system
+  - Added `secret_prefix` and `secret_suffix` settings to `config/settings.yml` (default: null)  
+  - New CLI options: `--secret-prefix PREFIX`, `--secret-postfix SUFFIX` for runtime control
+  - New disable flags: `-P`/`--no-secret-postfix`, `--no-secret-prefix` to override settings
+  - Automatic application of prefix/suffix to all secret names for clear differentiation from configs
+  - Full integration with both environment secrets and group secrets
+  - Environment variable support: `LALL_SECRET_PREFIX`, `LALL_SECRET_SUFFIX`
+  - Comprehensive test coverage for all secret prefix/suffix scenarios
+
+### Added (Ruby 2.7 Compatibility)
+- **Extended Ruby Support**: Backward compatibility for older Ruby versions
+  - Updated minimum Ruby requirement from >= 3.1.0 to >= 2.7.0
+  - Added Ruby 2.7 and 3.0 to GitHub Actions CI test matrix
+  - Updated RuboCop target version to 2.7 for compatibility checking
+  - Fixed Ruby 2.7 compatibility issues in CLI options parsing
+  - All 73+ tests passing on Ruby 2.7, 3.0, 3.1, 3.2, 3.3, and 3.4
+
+### Fixed
+- **Table Alignment for Wide Characters**: Enhanced display width calculation
+  - Fixed emoji and wide character display width calculation in table formatting
+  - Added proper Unicode display width detection for emojis (counts as 2 columns)
+  - Updated table header and row padding to use actual display width instead of character count
+  - Resolved table misalignment issues when using emoji prefixes/suffixes
+  - Improved support for CJK characters and other wide Unicode characters
+  - Custom padding implementation accounts for visual terminal display width
+
 ## [0.13.0] - 2024-10-14
 
 ### Added

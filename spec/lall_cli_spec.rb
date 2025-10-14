@@ -389,4 +389,49 @@ RSpec.describe LallCLI do
     end
   end
 
+  describe 'secret prefix/suffix functionality' do
+    let(:cli_with_prefix) { described_class.new(['--match', 'test_*', '--env', 'test-env', '--secret-prefix', 'sec_']) }
+    let(:cli_with_suffix) { described_class.new(['--match', 'test_*', '--env', 'test-env', '--secret-postfix', '_secret']) }
+    let(:cli_with_both) { described_class.new(['--match', 'test_*', '--env', 'test-env', '--secret-prefix', 'sec_', '--secret-postfix', '_secret']) }
+
+    it 'applies secret prefix to CLI options' do
+      expect(cli_with_prefix.instance_variable_get(:@options)[:secret_prefix]).to eq('sec_')
+      expect(cli_with_prefix.instance_variable_get(:@options)[:secret_suffix]).to be_nil
+    end
+
+    it 'applies secret suffix to CLI options' do
+      expect(cli_with_suffix.instance_variable_get(:@options)[:secret_prefix]).to be_nil
+      expect(cli_with_suffix.instance_variable_get(:@options)[:secret_suffix]).to eq('_secret')
+    end
+
+    it 'applies both prefix and suffix to CLI options' do
+      expect(cli_with_both.instance_variable_get(:@options)[:secret_prefix]).to eq('sec_')
+      expect(cli_with_both.instance_variable_get(:@options)[:secret_suffix]).to eq('_secret')
+    end
+
+    it 'applies secret affixes to secret names' do
+      # Test prefix only
+      expect(cli_with_prefix.send(:apply_secret_affixes, 'api_key')).to eq('sec_api_key')
+      
+      # Test suffix only  
+      expect(cli_with_suffix.send(:apply_secret_affixes, 'api_key')).to eq('api_key_secret')
+      
+      # Test both prefix and suffix
+      expect(cli_with_both.send(:apply_secret_affixes, 'api_key')).to eq('sec_api_key_secret')
+    end
+
+    context 'with --no-secret-prefix and --no-secret-postfix flags' do
+      let(:cli_no_prefix) { described_class.new(['--match', 'test_*', '--env', 'test-env', '--no-secret-prefix']) }
+      let(:cli_no_suffix) { described_class.new(['--match', 'test_*', '--env', 'test-env', '-P']) }
+
+      it 'disables secret prefix with --no-secret-prefix' do
+        expect(cli_no_prefix.instance_variable_get(:@options)[:secret_prefix]).to be_nil
+      end
+
+      it 'disables secret suffix with -P/--no-secret-postfix' do
+        expect(cli_no_suffix.instance_variable_get(:@options)[:secret_suffix]).to be_nil
+      end
+    end
+  end
+
 end

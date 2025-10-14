@@ -124,6 +124,18 @@ class LallCLI
     opts.on('-x', '--expose', 'Expose secrets (show actual secret values for secrets/group_secrets keys)') do
       @raw_options[:expose] = true
     end
+    opts.on('--secret-prefix=PREFIX', 'Prefix to add to secret names for differentiation') do |v|
+      @raw_options[:secret_prefix] = v
+    end
+    opts.on('--secret-postfix=SUFFIX', 'Suffix to add to secret names for differentiation') do |v|
+      @raw_options[:secret_suffix] = v
+    end
+    opts.on('-P', '--no-secret-postfix', 'Disable secret suffix (override settings)') do
+      @raw_options[:secret_suffix] = nil
+    end
+    opts.on('--no-secret-prefix', 'Disable secret prefix (override settings)') do
+      @raw_options[:secret_prefix] = nil
+    end
     opts.on('-d', '--debug', 'Enable debug output (prints lotus commands)') { @raw_options[:debug] = true }
     opts.on('--debug-settings', 'Show settings resolution and exit') { @raw_options[:debug_settings] = true }
     opts.on('--show-settings', 'Show all resolved settings and exit') { @raw_options[:show_settings] = true }
@@ -246,10 +258,10 @@ class LallCLI
     # Add secrets from environment (if expose is enabled, fetch secret values)
     if env.secrets && !env.secrets.empty?
       search_data['secrets'] = {}
-      # Always store the secret keys for pattern matching
+      # Always store the secret keys for pattern matching (use original names for matching)
       search_data['secrets']['keys'] = env.secrets.map(&:name)
       if @options[:expose]
-        # Get secret values from the instantiated secret objects
+        # Get secret values from the instantiated secret objects (use original names as keys)
         env.secrets.each do |secret|
           search_data['secrets'][secret.name] = secret.data
         end
@@ -275,16 +287,24 @@ class LallCLI
     return unless group_secrets && !group_secrets.empty?
 
     search_data['group_secrets'] = {}
-    # Always store the group secret keys for pattern matching
+    # Always store the group secret keys for pattern matching (use original names for matching)
     search_data['group_secrets']['keys'] = group_secrets.map(&:name)
     if @options[:expose]
-      # Get group secret values from the instantiated secret objects
+      # Get group secret values from the instantiated secret objects (use original names as keys)
       group_secrets.each do |secret|
         search_data['group_secrets'][secret.name] = secret.data
       end
     end
   rescue NoMethodError
     # Group data failed to load, skip group data
+  end
+
+  # Apply secret prefix/suffix to secret names for display
+  def apply_secret_affixes(secret_name)
+    name = secret_name.to_s
+    name = "#{@options[:secret_prefix]}#{name}" if @options[:secret_prefix]
+    name = "#{name}#{@options[:secret_suffix]}" if @options[:secret_suffix]
+    name
   end
 
   def resolve_core_options(resolved)
@@ -303,6 +323,8 @@ class LallCLI
     resolved[:insensitive] = @raw_options[:insensitive] || cli_settings[:insensitive]
     resolved[:path_also] = @raw_options[:path_also] || cli_settings[:path_also]
     resolved[:pivot] = @raw_options[:pivot] || cli_settings[:pivot]
+    resolved[:secret_prefix] = cli_settings[:secret_prefix]
+    resolved[:secret_suffix] = cli_settings[:secret_suffix]
     resolved[:export] = @raw_options[:export] if @raw_options.key?(:export)
     resolved[:output_file] = @raw_options[:output_file] if @raw_options.key?(:output_file)
   end
@@ -439,6 +461,8 @@ class LallCLI
     puts "  expose: #{@options[:expose]}"
     puts "  debug: #{@options[:debug]}"
     puts "  secret_placeholder: #{@settings.get('output.secret_placeholder', '{SECRET}')}"
+    puts "  secret_prefix: #{@options[:secret_prefix] || 'null'}"
+    puts "  secret_suffix: #{@options[:secret_suffix] || 'null'}"
     puts ''
 
     # Color settings
@@ -741,7 +765,8 @@ class LallCLI
                   @settings.get('output.secret_placeholder', '{SECRET}')
                 end
         color = @settings.get('output.colors.from_env', :white)
-        results << { path: 'secrets', key: secret_key, value: value, color: color }
+        display_key = apply_secret_affixes(secret_key)
+        results << { path: 'secrets', key: display_key, value: value, color: color }
       end
     end
 
@@ -756,7 +781,8 @@ class LallCLI
                   @settings.get('output.secret_placeholder', '{SECRET}')
                 end
         color = @settings.get('output.colors.from_group', :green)
-        results << { path: 'group_secrets', key: secret_key, value: value, color: color }
+        display_key = apply_secret_affixes(secret_key)
+        results << { path: 'group_secrets', key: display_key, value: value, color: color }
       end
     end
 

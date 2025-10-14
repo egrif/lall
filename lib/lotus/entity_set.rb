@@ -3,7 +3,6 @@
 require_relative 'environment'
 require_relative 'group'
 require_relative '../lall/settings_manager'
-require 'pry'
 
 module Lotus
   # EntitySet manages collections of Lotus entities (Environments and Groups)

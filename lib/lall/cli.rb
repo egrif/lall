@@ -520,11 +520,11 @@ class LallCLI
       exit 1
     end
 
-    default_settings = YAML.load_file(default_settings_path)
+    default_settings = YAML.safe_load_file(default_settings_path)
 
     # Load existing user settings or create empty hash
     user_settings = if File.exist?(user_settings_path)
-                      YAML.load_file(user_settings_path) || {}
+                      YAML.safe_load_file(user_settings_path) || {}
                     else
                       {}
                     end

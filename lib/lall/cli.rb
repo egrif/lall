@@ -760,68 +760,85 @@ class LallCLI
   end
 
   def perform_search(search_data, _env)
-    # Simple search that just shows secret placeholder for secrets instead of KeySearcher
     results = []
     pattern = @options[:match]
     filter = @options[:only]
 
-    # Search configs with intelligent coloring
-    if should_include_config_type?(:config, filter) && should_include_scope_type?(:environment, filter)
-      search_data['configs']&.each do |key, value|
-        next unless key_matches_pattern?(key, pattern)
+    results.concat(search_environment_configs(search_data, pattern, filter))
+    results.concat(search_environment_secrets(search_data, pattern, filter))
+    results.concat(search_group_configs(search_data, pattern, filter))
+    results.concat(search_group_secrets(search_data, pattern, filter))
 
-        # Determine color based on whether this value exists in group configs
-        color = determine_config_color(key, value, search_data)
-        results << { path: 'configs', key: key, value: value, color: color }
-      end
+    results
+  end
+
+  def search_environment_configs(search_data, pattern, filter)
+    return [] unless should_include_config_type?(:config, filter) &&
+                     should_include_scope_type?(:environment, filter)
+
+    results = []
+    search_data['configs']&.each do |key, value|
+      next unless key_matches_pattern?(key, pattern)
+
+      color = determine_config_color(key, value, search_data)
+      results << { path: 'configs', key: key, value: value, color: color }
     end
+    results
+  end
 
-    # Search secrets - show actual values if exposing, otherwise show placeholder
-    if should_include_config_type?(:secret, filter) && should_include_scope_type?(:environment, filter)
-      if search_data['secrets'] && search_data['secrets']['keys']
-        search_data['secrets']['keys'].each do |secret_key|
-          next unless key_matches_pattern?(secret_key, pattern)
+  def search_environment_secrets(search_data, pattern, filter)
+    return [] unless should_include_config_type?(:secret, filter) &&
+                     should_include_scope_type?(:environment, filter) &&
+                     search_data['secrets']&.dig('keys')
 
-          value = if @options[:expose] && search_data['secrets'][secret_key]
-                    search_data['secrets'][secret_key]
-                  else
-                    @settings.get('output.secret_placeholder', '{SECRET}')
-                  end
-          color = @settings.get('output.colors.from_env', :white)
-          display_key = apply_secret_affixes(secret_key)
-          results << { path: 'secrets', key: display_key, value: value, color: color }
-        end
-      end
+    results = []
+    search_data['secrets']['keys'].each do |secret_key|
+      next unless key_matches_pattern?(secret_key, pattern)
+
+      value = if @options[:expose] && search_data['secrets'][secret_key]
+                search_data['secrets'][secret_key]
+              else
+                @settings.get('output.secret_placeholder', '{SECRET}')
+              end
+      color = @settings.get('output.colors.from_env', :white)
+      display_key = apply_secret_affixes(secret_key)
+      results << { path: 'secrets', key: display_key, value: value, color: color }
     end
+    results
+  end
 
-    # Search group configs
-    if should_include_config_type?(:config, filter) && should_include_scope_type?(:group, filter)
-      search_data['group_configs']&.each do |key, value|
-        next unless key_matches_pattern?(key, pattern)
+  def search_group_configs(search_data, pattern, filter)
+    return [] unless should_include_config_type?(:config, filter) &&
+                     should_include_scope_type?(:group, filter)
 
-        color = @settings.get('output.colors.from_group', :green)
-        results << { path: 'group_configs', key: key, value: value, color: color }
-      end
+    results = []
+    search_data['group_configs']&.each do |key, value|
+      next unless key_matches_pattern?(key, pattern)
+
+      color = @settings.get('output.colors.from_group', :green)
+      results << { path: 'group_configs', key: key, value: value, color: color }
     end
+    results
+  end
 
-    # Search group secrets - show actual values if exposing, otherwise show placeholder
-    if should_include_config_type?(:secret, filter) && should_include_scope_type?(:group, filter)
-      if search_data['group_secrets'] && search_data['group_secrets']['keys']
-        search_data['group_secrets']['keys'].each do |secret_key|
-          next unless key_matches_pattern?(secret_key, pattern)
+  def search_group_secrets(search_data, pattern, filter)
+    return [] unless should_include_config_type?(:secret, filter) &&
+                     should_include_scope_type?(:group, filter) &&
+                     search_data['group_secrets']&.dig('keys')
 
-          value = if @options[:expose] && search_data['group_secrets'][secret_key]
-                    search_data['group_secrets'][secret_key]
-                  else
-                    @settings.get('output.secret_placeholder', '{SECRET}')
-                  end
-          color = @settings.get('output.colors.from_group', :green)
-          display_key = apply_secret_affixes(secret_key)
-          results << { path: 'group_secrets', key: display_key, value: value, color: color }
-        end
-      end
+    results = []
+    search_data['group_secrets']['keys'].each do |secret_key|
+      next unless key_matches_pattern?(secret_key, pattern)
+
+      value = if @options[:expose] && search_data['group_secrets'][secret_key]
+                search_data['group_secrets'][secret_key]
+              else
+                @settings.get('output.secret_placeholder', '{SECRET}')
+              end
+      color = @settings.get('output.colors.from_group', :green)
+      display_key = apply_secret_affixes(secret_key)
+      results << { path: 'group_secrets', key: display_key, value: value, color: color }
     end
-
     results
   end
 
@@ -844,13 +861,13 @@ class LallCLI
 
   def should_include_config_type?(type, filter)
     return true if filter.nil? || filter[:config_type].nil?
-    
+
     filter[:config_type] == type
   end
 
   def should_include_scope_type?(scope, filter)
     return true if filter.nil? || filter[:scope_type].nil?
-    
+
     filter[:scope_type] == scope
   end
 
@@ -860,13 +877,11 @@ class LallCLI
     # Normalize the input - split by comma and strip whitespace
     parts = if filter_string.include?(',')
               filter_string.split(',').map(&:strip)
-            else
+            elsif filter_string.length > 1 && filter_string.chars.all? { |c| %w[c s e g].include?(c) }
               # If no comma, check if it's concatenated single chars (like "ce" or "sg")
-              if filter_string.length > 1 && filter_string.chars.all? { |c| %w[c s e g].include?(c) }
-                filter_string.chars
-              else
-                [filter_string]
-              end
+              filter_string.chars
+            else
+              [filter_string]
             end
 
     # Parse each part to standardized form
@@ -884,7 +899,8 @@ class LallCLI
       when 'g', 'grp', 'group'
         scope_filter = :group
       else
-        raise ArgumentError, "Invalid filter value: '#{part}'. Valid values: c/cfg/config, s/sec/secret, e/env/environment, g/grp/group"
+        valid_values = 'c/cfg/config, s/sec/secret, e/env/environment, g/grp/group'
+        raise ArgumentError, "Invalid filter value: '#{part}'. Valid values: #{valid_values}"
       end
     end
 
@@ -894,7 +910,7 @@ class LallCLI
   def key_matches_pattern?(key, patterns)
     # Handle comma-separated patterns
     pattern_list = patterns.split(',').map(&:strip)
-    
+
     pattern_list.any? do |pattern|
       next true if pattern == '*' || pattern == key
 

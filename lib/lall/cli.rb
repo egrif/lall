@@ -22,6 +22,24 @@ SETTINGS = YAML.load_file(SETTINGS_PATH) if File.exist?(SETTINGS_PATH)
 ENV_GROUPS = SETTINGS ? SETTINGS['groups'] : {}
 
 class LallCLI
+  # Valid single character filters for concatenated patterns
+  VALID_SINGLE_CHAR_FILTERS = %w[c s e g].freeze
+
+  # SearchContext encapsulates search parameters to reduce parameter duplication
+  SearchContext = Struct.new(:search_data, :pattern, :filter_opts, :options, :settings) do
+    def should_include_config_type?(type)
+      return true if filter_opts.nil? || filter_opts[:config_type].nil?
+
+      filter_opts[:config_type] == type
+    end
+
+    def should_include_scope_type?(scope)
+      return true if filter_opts.nil? || filter_opts[:scope_type].nil?
+
+      filter_opts[:scope_type] == scope
+    end
+  end
+
   # Fetch results from entity set (used in tests and main logic)
   def fetch_results_from_entity_set(entity_set)
     entity_set.fetch_all
@@ -760,82 +778,81 @@ class LallCLI
   end
 
   def perform_search(search_data, _env)
-    results = []
-    pattern = @options[:match]
-    filter = @options[:only]
+    context = SearchContext.new(search_data, @options[:match], @options[:only], @options, @settings)
 
-    results.concat(search_environment_configs(search_data, pattern, filter))
-    results.concat(search_environment_secrets(search_data, pattern, filter))
-    results.concat(search_group_configs(search_data, pattern, filter))
-    results.concat(search_group_secrets(search_data, pattern, filter))
+    results = []
+    results.concat(search_environment_configs(context))
+    results.concat(search_environment_secrets(context))
+    results.concat(search_group_configs(context))
+    results.concat(search_group_secrets(context))
 
     results
   end
 
-  def search_environment_configs(search_data, pattern, filter)
-    return [] unless should_include_config_type?(:config, filter) &&
-                     should_include_scope_type?(:environment, filter)
+  def search_environment_configs(context)
+    return [] unless context.should_include_config_type?(:config) &&
+                     context.should_include_scope_type?(:environment)
 
     results = []
-    search_data['configs']&.each do |key, value|
-      next unless key_matches_pattern?(key, pattern)
+    context.search_data['configs']&.each do |key, value|
+      next unless key_matches_pattern?(key, context.pattern)
 
-      color = determine_config_color(key, value, search_data)
+      color = determine_config_color(key, value, context.search_data)
       results << { path: 'configs', key: key, value: value, color: color }
     end
     results
   end
 
-  def search_environment_secrets(search_data, pattern, filter)
-    return [] unless should_include_config_type?(:secret, filter) &&
-                     should_include_scope_type?(:environment, filter) &&
-                     search_data['secrets']&.dig('keys')
+  def search_environment_secrets(context)
+    return [] unless context.should_include_config_type?(:secret) &&
+                     context.should_include_scope_type?(:environment) &&
+                     context.search_data['secrets']&.dig('keys')
 
     results = []
-    search_data['secrets']['keys'].each do |secret_key|
-      next unless key_matches_pattern?(secret_key, pattern)
+    context.search_data['secrets']['keys'].each do |secret_key|
+      next unless key_matches_pattern?(secret_key, context.pattern)
 
-      value = if @options[:expose] && search_data['secrets'][secret_key]
-                search_data['secrets'][secret_key]
+      value = if context.options[:expose] && context.search_data['secrets'][secret_key]
+                context.search_data['secrets'][secret_key]
               else
-                @settings.get('output.secret_placeholder', '{SECRET}')
+                context.settings.get('output.secret_placeholder', '{SECRET}')
               end
-      color = @settings.get('output.colors.from_env', :white)
+      color = context.settings.get('output.colors.from_env', :white)
       display_key = apply_secret_affixes(secret_key)
       results << { path: 'secrets', key: display_key, value: value, color: color }
     end
     results
   end
 
-  def search_group_configs(search_data, pattern, filter)
-    return [] unless should_include_config_type?(:config, filter) &&
-                     should_include_scope_type?(:group, filter)
+  def search_group_configs(context)
+    return [] unless context.should_include_config_type?(:config) &&
+                     context.should_include_scope_type?(:group)
 
     results = []
-    search_data['group_configs']&.each do |key, value|
-      next unless key_matches_pattern?(key, pattern)
+    context.search_data['group_configs']&.each do |key, value|
+      next unless key_matches_pattern?(key, context.pattern)
 
-      color = @settings.get('output.colors.from_group', :green)
+      color = context.settings.get('output.colors.from_group', :green)
       results << { path: 'group_configs', key: key, value: value, color: color }
     end
     results
   end
 
-  def search_group_secrets(search_data, pattern, filter)
-    return [] unless should_include_config_type?(:secret, filter) &&
-                     should_include_scope_type?(:group, filter) &&
-                     search_data['group_secrets']&.dig('keys')
+  def search_group_secrets(context)
+    return [] unless context.should_include_config_type?(:secret) &&
+                     context.should_include_scope_type?(:group) &&
+                     context.search_data['group_secrets']&.dig('keys')
 
     results = []
-    search_data['group_secrets']['keys'].each do |secret_key|
-      next unless key_matches_pattern?(secret_key, pattern)
+    context.search_data['group_secrets']['keys'].each do |secret_key|
+      next unless key_matches_pattern?(secret_key, context.pattern)
 
-      value = if @options[:expose] && search_data['group_secrets'][secret_key]
-                search_data['group_secrets'][secret_key]
+      value = if context.options[:expose] && context.search_data['group_secrets'][secret_key]
+                context.search_data['group_secrets'][secret_key]
               else
-                @settings.get('output.secret_placeholder', '{SECRET}')
+                context.settings.get('output.secret_placeholder', '{SECRET}')
               end
-      color = @settings.get('output.colors.from_group', :green)
+      color = context.settings.get('output.colors.from_group', :green)
       display_key = apply_secret_affixes(secret_key)
       results << { path: 'group_secrets', key: display_key, value: value, color: color }
     end
@@ -859,17 +876,7 @@ class LallCLI
     end
   end
 
-  def should_include_config_type?(type, filter)
-    return true if filter.nil? || filter[:config_type].nil?
 
-    filter[:config_type] == type
-  end
-
-  def should_include_scope_type?(scope, filter)
-    return true if filter.nil? || filter[:scope_type].nil?
-
-    filter[:scope_type] == scope
-  end
 
   def parse_only_filter(filter_string)
     return nil if filter_string.nil? || filter_string.empty?
@@ -877,7 +884,7 @@ class LallCLI
     # Normalize the input - split by comma and strip whitespace
     parts = if filter_string.include?(',')
               filter_string.split(',').map(&:strip)
-            elsif filter_string.length > 1 && filter_string.chars.all? { |c| %w[c s e g].include?(c) }
+            elsif filter_string.length > 1 && filter_string.chars.all? { |c| VALID_SINGLE_CHAR_FILTERS.include?(c) }
               # If no comma, check if it's concatenated single chars (like "ce" or "sg")
               filter_string.chars
             else

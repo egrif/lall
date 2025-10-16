@@ -107,6 +107,9 @@ class LallCLI
             'Truncate output values longer than LEN (default: 0=no truncation) with ellipsis in the middle') do |v|
       @raw_options[:truncate] = v
     end
+    opts.on('-T', '--no-truncate', 'Disable truncation (equivalent to --truncate=0)') do
+      @raw_options[:truncate] = 0
+    end
     opts.on('-fFORMAT', '--format=FORMAT', %i[csv json yaml txt],
             'Export results to file in FORMAT (csv, json, yaml, txt)') do |v|
       @raw_options[:export] = v

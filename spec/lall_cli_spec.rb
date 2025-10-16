@@ -73,6 +73,13 @@ RSpec.describe LallCLI do
 
         expect(options[:truncate]).to eq(50)
       end
+
+      it 'parses no-truncate option' do
+        cli = LallCLI.new(['-m', 'token', '-e', 'prod', '-T'])
+        options = cli.instance_variable_get(:@options)
+
+        expect(options[:truncate]).to eq(0)
+      end
     end
 
     context 'with long-form options' do
@@ -97,6 +104,13 @@ RSpec.describe LallCLI do
         expect(options[:truncate]).to eq(60)
         expect(options[:expose]).to be true
         expect(options[:debug]).to be true
+      end
+
+      it 'parses --no-truncate option' do
+        cli = LallCLI.new(['-m', 'token', '-e', 'prod', '--no-truncate'])
+        options = cli.instance_variable_get(:@options)
+
+        expect(options[:truncate]).to eq(0)
       end
     end
   end

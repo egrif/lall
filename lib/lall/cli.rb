@@ -22,6 +22,24 @@ SETTINGS = YAML.load_file(SETTINGS_PATH) if File.exist?(SETTINGS_PATH)
 ENV_GROUPS = SETTINGS ? SETTINGS['groups'] : {}
 
 class LallCLI
+  # Valid single character filters for concatenated patterns
+  VALID_SINGLE_CHAR_FILTERS = %w[c s e g].freeze
+
+  # SearchContext encapsulates search parameters to reduce parameter duplication
+  SearchContext = Struct.new(:search_data, :pattern, :filter_opts, :options, :settings) do
+    def should_include_config_type?(type)
+      return true if filter_opts.nil? || filter_opts[:config_type].nil?
+
+      filter_opts[:config_type] == type
+    end
+
+    def should_include_scope_type?(scope)
+      return true if filter_opts.nil? || filter_opts[:scope_type].nil?
+
+      filter_opts[:scope_type] == scope
+    end
+  end
+
   # Fetch results from entity set (used in tests and main logic)
   def fetch_results_from_entity_set(entity_set)
     entity_set.fetch_all
@@ -68,7 +86,7 @@ class LallCLI
   end
 
   def setup_search_options(opts)
-    opts.on('-mMATCH', '--match=MATCH', 'Glob pattern to search for in YAML keys (required)') do |v|
+    opts.on('-mMATCH', '--match=MATCH', 'Comma-separated glob patterns to search for in YAML keys (required)') do |v|
       @raw_options[:match] = v
     end
     opts.on('-i', '--insensitive', 'Case-insensitive key search (optional)') { @raw_options[:insensitive] = true }
@@ -106,6 +124,14 @@ class LallCLI
     opts.on('-t LEN', '--truncate=LEN', Integer,
             'Truncate output values longer than LEN (default: 0=no truncation) with ellipsis in the middle') do |v|
       @raw_options[:truncate] = v
+    end
+    opts.on('-T', '--no-truncate', 'Disable truncation (equivalent to --truncate=0)') do
+      @raw_options[:truncate] = 0
+    end
+    opts.on('-yFILTER', '--only=FILTER',
+            'Filter what to show: c/cfg/config, s/sec/secret, e/env/environment, g/grp/group',
+            'Examples: -y c (configs only), -y ce (configs+env only), -y cfg,env (same)') do |v|
+      @raw_options[:only] = v
     end
     opts.on('-fFORMAT', '--format=FORMAT', %i[csv json yaml txt],
             'Export results to file in FORMAT (csv, json, yaml, txt)') do |v|
@@ -312,6 +338,7 @@ class LallCLI
     resolved[:match] = @raw_options[:match]
     resolved[:env] = @raw_options[:env]
     resolved[:group] = @raw_options[:group]
+    resolved[:only] = parse_only_filter(@raw_options[:only]) if @raw_options[:only]
   end
 
   def resolve_cli_behavior_options(resolved)
@@ -751,51 +778,84 @@ class LallCLI
   end
 
   def perform_search(search_data, _env)
-    # Simple search that just shows secret placeholder for secrets instead of KeySearcher
+    context = SearchContext.new(search_data, @options[:match], @options[:only], @options, @settings)
+
     results = []
-    pattern = @options[:match]
+    results.concat(search_environment_configs(context))
+    results.concat(search_environment_secrets(context))
+    results.concat(search_group_configs(context))
+    results.concat(search_group_secrets(context))
 
-    # Search configs with intelligent coloring
-    search_data['configs']&.each do |key, value|
-      next unless key_matches_pattern?(key, pattern)
+    results
+  end
 
-      # Determine color based on whether this value exists in group configs
-      color = determine_config_color(key, value, search_data)
+  def search_environment_configs(context)
+    return [] unless context.should_include_config_type?(:config) &&
+                     context.should_include_scope_type?(:environment)
+
+    results = []
+    context.search_data['configs']&.each do |key, value|
+      next unless key_matches_pattern?(key, context.pattern)
+
+      color = determine_config_color(key, value, context.search_data)
       results << { path: 'configs', key: key, value: value, color: color }
     end
+    results
+  end
 
-    # Search secrets - show actual values if exposing, otherwise show placeholder
-    if search_data['secrets'] && search_data['secrets']['keys']
-      search_data['secrets']['keys'].each do |secret_key|
-        next unless key_matches_pattern?(secret_key, pattern)
+  def search_environment_secrets(context)
+    return [] unless context.should_include_config_type?(:secret) &&
+                     context.should_include_scope_type?(:environment) &&
+                     context.search_data['secrets']&.dig('keys')
 
-        value = if @options[:expose] && search_data['secrets'][secret_key]
-                  search_data['secrets'][secret_key]
-                else
-                  @settings.get('output.secret_placeholder', '{SECRET}')
-                end
-        color = @settings.get('output.colors.from_env', :white)
-        display_key = apply_secret_affixes(secret_key)
-        results << { path: 'secrets', key: display_key, value: value, color: color }
-      end
+    results = []
+    context.search_data['secrets']['keys'].each do |secret_key|
+      next unless key_matches_pattern?(secret_key, context.pattern)
+
+      value = if context.options[:expose] && context.search_data['secrets'][secret_key]
+                context.search_data['secrets'][secret_key]
+              else
+                context.settings.get('output.secret_placeholder', '{SECRET}')
+              end
+      color = context.settings.get('output.colors.from_env', :white)
+      display_key = apply_secret_affixes(secret_key)
+      results << { path: 'secrets', key: display_key, value: value, color: color }
     end
+    results
+  end
 
-    # Search group secrets - show actual values if exposing, otherwise show placeholder
-    if search_data['group_secrets'] && search_data['group_secrets']['keys']
-      search_data['group_secrets']['keys'].each do |secret_key|
-        next unless key_matches_pattern?(secret_key, pattern)
+  def search_group_configs(context)
+    return [] unless context.should_include_config_type?(:config) &&
+                     context.should_include_scope_type?(:group)
 
-        value = if @options[:expose] && search_data['group_secrets'][secret_key]
-                  search_data['group_secrets'][secret_key]
-                else
-                  @settings.get('output.secret_placeholder', '{SECRET}')
-                end
-        color = @settings.get('output.colors.from_group', :green)
-        display_key = apply_secret_affixes(secret_key)
-        results << { path: 'group_secrets', key: display_key, value: value, color: color }
-      end
+    results = []
+    context.search_data['group_configs']&.each do |key, value|
+      next unless key_matches_pattern?(key, context.pattern)
+
+      color = context.settings.get('output.colors.from_group', :green)
+      results << { path: 'group_configs', key: key, value: value, color: color }
     end
+    results
+  end
 
+  def search_group_secrets(context)
+    return [] unless context.should_include_config_type?(:secret) &&
+                     context.should_include_scope_type?(:group) &&
+                     context.search_data['group_secrets']&.dig('keys')
+
+    results = []
+    context.search_data['group_secrets']['keys'].each do |secret_key|
+      next unless key_matches_pattern?(secret_key, context.pattern)
+
+      value = if context.options[:expose] && context.search_data['group_secrets'][secret_key]
+                context.search_data['group_secrets'][secret_key]
+              else
+                context.settings.get('output.secret_placeholder', '{SECRET}')
+              end
+      color = context.settings.get('output.colors.from_group', :green)
+      display_key = apply_secret_affixes(secret_key)
+      results << { path: 'group_secrets', key: display_key, value: value, color: color }
+    end
     results
   end
 
@@ -816,20 +876,61 @@ class LallCLI
     end
   end
 
-  def key_matches_pattern?(key, pattern)
-    return true if pattern == '*' || pattern == key
+  def parse_only_filter(filter_string)
+    return nil if filter_string.nil? || filter_string.empty?
 
-    # Use case-insensitive matching if specified
-    if @options[:insensitive]
-      key.casecmp(pattern).zero? || File.fnmatch(pattern, key, File::FNM_CASEFOLD)
-    else
-      key == pattern || File.fnmatch(pattern, key)
+    # Normalize the input - split by comma and strip whitespace
+    parts = if filter_string.include?(',')
+              filter_string.split(',').map(&:strip)
+            elsif filter_string.length > 1 && filter_string.chars.all? { |c| VALID_SINGLE_CHAR_FILTERS.include?(c) }
+              # If no comma, check if it's concatenated single chars (like "ce" or "sg")
+              filter_string.chars
+            else
+              [filter_string]
+            end
+
+    # Parse each part to standardized form
+    config_filter = nil
+    scope_filter = nil
+
+    parts.each do |part|
+      case part.downcase
+      when 'c', 'cfg', 'config'
+        config_filter = :config
+      when 's', 'sec', 'secret'
+        config_filter = :secret
+      when 'e', 'env', 'environment'
+        scope_filter = :environment
+      when 'g', 'grp', 'group'
+        scope_filter = :group
+      else
+        valid_values = 'c/cfg/config, s/sec/secret, e/env/environment, g/grp/group'
+        raise ArgumentError, "Invalid filter value: '#{part}'. Valid values: #{valid_values}"
+      end
+    end
+
+    { config_type: config_filter, scope_type: scope_filter }
+  end
+
+  def key_matches_pattern?(key, patterns)
+    # Handle comma-separated patterns
+    pattern_list = patterns.split(',').map(&:strip)
+
+    pattern_list.any? do |pattern|
+      next true if pattern == '*' || pattern == key
+
+      # Use case-insensitive matching if specified
+      if @options[:insensitive]
+        key.casecmp(pattern).zero? || File.fnmatch(pattern, key, File::FNM_CASEFOLD)
+      else
+        key == pattern || File.fnmatch(pattern, key)
+      end
     end
   rescue ArgumentError => e
-    puts "Invalid pattern '#{pattern}': #{e.message}"
+    puts "Invalid pattern '#{patterns}': #{e.message}"
     false
   rescue StandardError => e
-    warn "Error matching key '#{key}' with pattern '#{pattern}': #{e.message}"
+    warn "Error matching key '#{key}' with patterns '#{patterns}': #{e.message}"
     false
   end
 end

@@ -109,7 +109,7 @@ lall -m MATCH [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
 
 | Option | Long Form | Description | Default |
 |--------|-----------|-------------|---------|
-| `-m` | `--match=MATCH` | Glob pattern to search for in YAML keys (required) | |
+| `-m` | `--match=MATCH` | Comma-separated glob patterns to search for in YAML keys (required) | |
 | `-e` | `--env=ENV` | Comma-separated environment(s) to search. Format: `name[:space[:region]]` | |
 | `-g` | `--group=GROUP` | Predefined group of environments | |
 | `-s` | `--space=SPACE` | Default space for environments if not specified in `-e` | `prod` |
@@ -118,7 +118,9 @@ lall -m MATCH [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
 | `-p` | `--path` | Include the full path column in output | `false` |
 | `-i` | `--insensitive` | Case-insensitive key search | `false` |
 | `-v` | `--pivot` | Pivot table (environments as rows, keys as columns) | `false` |
-| `-t[LEN]` | `--truncate[=LEN]` | Truncate values longer than LEN characters | `40` |
+| `-t[LEN]` | `--truncate[=LEN]` | Truncate values longer than LEN characters | `0` |
+| `-T` | `--no-truncate` | Disable truncation (equivalent to `--truncate=0`) | `false` |
+| `-y` | `--only=FILTER` | Filter data types: c/cfg/config, s/sec/secret, e/env/environment, g/grp/group | |
 | `-x` | `--expose` | Expose actual secret values (fetches from lotus) | `false` |
 | `-d` | `--debug` | Enable debug output (shows lotus commands) | `false` |
 | | `--cache-ttl=SECONDS` | Set cache TTL in seconds | `3600` |
@@ -167,7 +169,7 @@ This color coding helps quickly identify configuration differences and inheritan
 
 #### Standard Key Table (default)
 ```bash
-lall -s api_token -e prod,staging
+lall -m api_token -e prod,staging
 ```
 ```
 | Key       | prod      | staging   |
@@ -177,7 +179,7 @@ lall -s api_token -e prod,staging
 
 #### With Path Information (`-p`)
 ```bash
-lall -s api_token -e prod,staging -p
+lall -m api_token -e prod,staging -p
 ```
 ```
 | Path              | Key       | prod      | staging   |
@@ -187,7 +189,7 @@ lall -s api_token -e prod,staging -p
 
 #### Pivoted Table (`-v`)
 ```bash
-lall -s api_token -e prod,staging -v
+lall -m api_token -e prod,staging -v
 ```
 ```
 | Env     | api_token |
@@ -207,10 +209,10 @@ By default, secret keys show `{SECRET}` as values. Use `-x/--expose` to fetch ac
 
 ```bash
 # Show secret keys without values
-lall -s secret_key -g prod-us
+lall -m secret_key -g prod-us
 
 # Expose actual secret values  
-lall -s secret_key -g prod-us -x
+lall -m secret_key -g prod-us -x
 ```
 
 ## Examples
@@ -219,48 +221,66 @@ lall -s secret_key -g prod-us -x
 
 ```bash
 # Find all API tokens across production environments
-lall -s api_token -g prod-us
+lall -m api_token -g prod-us
 
-# Search for database configuration in specific environments
-lall -s database_* -e prod,staging,development
+# Search for multiple patterns at once (new in v0.15.0)
+lall -m "database_*,redis_*,RAILS_ENV" -e prod,staging
 
 # Case-insensitive search for timeout settings
-lall -s timeout -g staging -i
+lall -m timeout -g staging -i
 
 # Find all keys containing "service" 
-lall -s *service* -e prod -p
+lall -m *service* -e prod -p
+```
+
+### Selective Data Filtering (New in v0.15.0)
+
+```bash
+# Show only environment configuration (no secrets, no group data)
+lall -m '*' -e prod --only cfg,env
+lall -m '*' -e prod -y ce                    # Same as above (shorthand)
+
+# Show only secrets from all sources
+lall -m '*' -e prod --only secret
+
+# Show only group-level configuration and secrets  
+lall -m '*' -e prod --only c,g               # Group configs only
+lall -m '*' -e prod --only secret,group      # Group secrets only
+
+# Show only environment secrets (no group secrets, no configs)
+lall -m '*' -e prod -y se
 ```
 
 ### Advanced Usage
 
 ```bash
 # Comprehensive production audit with secrets exposed
-lall -s '*' -g prod-all -p -v -t100 -x
+lall -m '*' -g prod-all -p -v -T -x          # -T for no truncation
 
 # Debug lotus commands being executed
-lall -s api_* -e prod -d
+lall -m api_* -e prod -d
 
 # Compact view with short truncation
-lall -s database_url -g prod-us -t20
+lall -m database_url -g prod-us -t20
 
-# Full path view of configuration structure
-lall -s config* -e prod -p -v
+# Full path view of configuration structure (no truncation)
+lall -m config* -e prod -p -v -T
 ```
 
 ### Caching Examples
 
 ```bash
 # Enable caching with custom TTL (2 hours)
-lall -s database_* -e prod --cache-ttl=7200
+lall -m database_* -e prod --cache-ttl=7200
 
 # Use custom cache directory for isolation
-lall -s secrets_* -e prod --cache-dir=/secure/cache
+lall -m secrets_* -e prod --cache-dir=/secure/cache
 
 # Use cache prefix for multi-application environments
-lall -s config_* -e prod --cache-prefix=web-app
+lall -m config_* -e prod --cache-prefix=web-app
 
 # Disable caching for real-time sensitive data
-lall -s current_timestamp -e prod --no-cache
+lall -m current_timestamp -e prod --no-cache
 
 # View cache statistics (shows size, backend info, and entity counts)
 lall --cache-stats
@@ -269,7 +289,7 @@ lall --cache-stats
 lall --cache-prefix=web-app --clear-cache
 
 # Clear all cache and perform fresh scan
-lall --clear-cache && lall -s '*' -g prod-all
+lall --clear-cache && lall -m '*' -g prod-all
 ```
 
 ### Settings Examples
@@ -287,23 +307,23 @@ lall --show-settings
 # Use environment variable defaults
 export LALL_CACHE_TTL=7200
 export LALL_DEBUG=true
-lall -s database_* -e prod
+lall -m database_* -e prod
 ```
 
 ### Wildcard Patterns
 
 ```bash
 # Beginning wildcard: find all keys ending with "_url"
-lall -s *_url -e prod
+lall -m *_url -e prod
 
 # End wildcard: find all keys starting with "api_"  
-lall -s api_* -e prod
+lall -m api_* -e prod
 
 # Middle wildcard: find keys with pattern "database_*_timeout"
-lall -s database_*_timeout -e prod
+lall -m database_*_timeout -e prod
 
 # Multiple wildcards: complex pattern matching
-lall -s *_database_*_config -e prod
+lall -m *_database_*_config -e prod
 ```
 
 ## Caching
@@ -331,16 +351,16 @@ All cached data is encrypted using AES-256-GCM encryption. A unique encryption k
 
 ```bash
 # Set custom cache TTL (default: 1 hour)
-lall -s database -e prod --cache-ttl=7200
+lall -m database -e prod --cache-ttl=7200
 
 # Use custom cache directory
-lall -s database -e prod --cache-dir=/tmp/my-cache
+lall -m database -e prod --cache-dir=/tmp/my-cache
 
 # Use custom cache prefix for isolation
-lall -s database -e prod --cache-prefix=my-app
+lall -m database -e prod --cache-prefix=my-app
 
 # Disable caching for sensitive operations
-lall -s secrets -e prod --no-cache
+lall -m secrets -e prod --no-cache
 
 # Clear cache entries with specific prefix
 lall --cache-prefix=my-app --clear-cache

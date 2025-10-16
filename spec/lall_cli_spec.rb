@@ -41,6 +41,14 @@ RSpec.describe LallCLI do
         expect(options[:group]).to eq('test')
       end
 
+      it 'parses comma-separated match patterns' do
+        cli = LallCLI.new(['-m', 'DATABASE_*,RAILS_*,API_KEY', '-e', 'prod'])
+        options = cli.instance_variable_get(:@options)
+
+        expect(options[:match]).to eq('DATABASE_*,RAILS_*,API_KEY')
+        expect(options[:env]).to eq('prod')
+      end
+
       it 'parses boolean flags' do
         cli = LallCLI.new(['-m', 'token', '-e', 'prod', '-p', '-i', '-v', '-x', '-d'])
         options = cli.instance_variable_get(:@options)
@@ -64,6 +72,61 @@ RSpec.describe LallCLI do
         options = cli.instance_variable_get(:@options)
 
         expect(options[:truncate]).to eq(50)
+      end
+
+      it 'parses no-truncate option' do
+        cli = LallCLI.new(['-m', 'token', '-e', 'prod', '-T'])
+        options = cli.instance_variable_get(:@options)
+
+        expect(options[:truncate]).to eq(0)
+      end
+
+      context 'with --only option' do
+        it 'parses single config type filter' do
+          cli = LallCLI.new(['-m', 'token', '-e', 'prod', '-y', 'c'])
+          options = cli.instance_variable_get(:@options)
+
+          expect(options[:only][:config_type]).to eq(:config)
+          expect(options[:only][:scope_type]).to be_nil
+        end
+
+        it 'parses concatenated filters' do
+          cli = LallCLI.new(['-m', 'token', '-e', 'prod', '-y', 'ce'])
+          options = cli.instance_variable_get(:@options)
+
+          expect(options[:only][:config_type]).to eq(:config)
+          expect(options[:only][:scope_type]).to eq(:environment)
+        end
+
+        it 'parses comma-separated filters' do
+          cli = LallCLI.new(['-m', 'token', '-e', 'prod', '--only=cfg,env'])
+          options = cli.instance_variable_get(:@options)
+
+          expect(options[:only][:config_type]).to eq(:config)
+          expect(options[:only][:scope_type]).to eq(:environment)
+        end
+
+        it 'parses secret and group filters' do
+          cli = LallCLI.new(['-m', 'token', '-e', 'prod', '-y', 'sg'])
+          options = cli.instance_variable_get(:@options)
+
+          expect(options[:only][:config_type]).to eq(:secret)
+          expect(options[:only][:scope_type]).to eq(:group)
+        end
+
+        it 'parses long form aliases' do
+          cli = LallCLI.new(['-m', 'token', '-e', 'prod', '--only=secret,environment'])
+          options = cli.instance_variable_get(:@options)
+
+          expect(options[:only][:config_type]).to eq(:secret)
+          expect(options[:only][:scope_type]).to eq(:environment)
+        end
+
+        it 'handles invalid filter values' do
+          expect {
+            LallCLI.new(['-m', 'token', '-e', 'prod', '--only=invalid'])
+          }.to raise_error(ArgumentError, /Invalid filter value: 'invalid'/)
+        end
       end
     end
 
@@ -89,6 +152,13 @@ RSpec.describe LallCLI do
         expect(options[:truncate]).to eq(60)
         expect(options[:expose]).to be true
         expect(options[:debug]).to be true
+      end
+
+      it 'parses --no-truncate option' do
+        cli = LallCLI.new(['-m', 'token', '-e', 'prod', '--no-truncate'])
+        options = cli.instance_variable_get(:@options)
+
+        expect(options[:truncate]).to eq(0)
       end
     end
   end
@@ -197,6 +267,60 @@ RSpec.describe LallCLI do
         cli = LallCLI.new(['-g', 'list'])
 
         expect { cli.run }.not_to raise_error
+      end
+    end
+
+    context 'with comma-separated patterns' do
+      let(:env_results) do
+        {
+          'prod' => [
+            { path: 'configs', key: 'DATABASE_URL', value: 'postgres://...', color: :white },
+            { path: 'configs', key: 'REDIS_URL', value: 'redis://...', color: :white },
+            { path: 'configs', key: 'RAILS_ENV', value: 'production', color: :white },
+            { path: 'configs', key: 'API_KEY', value: 'secret123', color: :white }
+          ]
+        }
+      end
+
+      before do
+        # Mock entity-based system for comma-separated pattern tests
+        entity_set = double('entity_set')
+        environments = [
+          double('prod', name: 'prod', data: {
+            'configs' => {
+              'DATABASE_URL' => 'postgres://...',
+              'REDIS_URL' => 'redis://...',
+              'RAILS_ENV' => 'production',
+              'API_KEY' => 'secret123'
+            }
+          })
+        ]
+        allow(entity_set).to receive(:fetch_all)
+        allow(entity_set).to receive(:environments).and_return(environments)
+        allow_any_instance_of(LallCLI).to receive(:create_entity_set).and_return(entity_set)
+        allow_any_instance_of(LallCLI).to receive(:fetch_results_from_entity_set).and_return(env_results)
+      end
+
+      it 'matches multiple comma-separated patterns' do
+        cli = LallCLI.new(['-m', 'DATABASE_URL,RAILS_ENV', '-e', 'prod'])
+        
+        expect { cli.run }.to output(/DATABASE_URL.*postgres/).to_stdout
+        expect { cli.run }.to output(/RAILS_ENV.*production/).to_stdout
+      end
+
+      it 'matches comma-separated glob patterns' do
+        cli = LallCLI.new(['-m', '*_URL,RAILS_*', '-e', 'prod'])
+        
+        expect { cli.run }.to output(/DATABASE_URL/).to_stdout
+        expect { cli.run }.to output(/REDIS_URL/).to_stdout
+        expect { cli.run }.to output(/RAILS_ENV/).to_stdout
+      end
+
+      it 'handles whitespace around commas' do
+        cli = LallCLI.new(['-m', ' DATABASE_URL , RAILS_ENV ', '-e', 'prod'])
+        
+        expect { cli.run }.to output(/DATABASE_URL/).to_stdout
+        expect { cli.run }.to output(/RAILS_ENV/).to_stdout
       end
     end
 

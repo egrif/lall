@@ -68,7 +68,7 @@ class LallCLI
   end
 
   def setup_search_options(opts)
-    opts.on('-mMATCH', '--match=MATCH', 'Glob pattern to search for in YAML keys (required)') do |v|
+    opts.on('-mMATCH', '--match=MATCH', 'Comma-separated glob patterns to search for in YAML keys (required)') do |v|
       @raw_options[:match] = v
     end
     opts.on('-i', '--insensitive', 'Case-insensitive key search (optional)') { @raw_options[:insensitive] = true }
@@ -816,20 +816,25 @@ class LallCLI
     end
   end
 
-  def key_matches_pattern?(key, pattern)
-    return true if pattern == '*' || pattern == key
+  def key_matches_pattern?(key, patterns)
+    # Handle comma-separated patterns
+    pattern_list = patterns.split(',').map(&:strip)
+    
+    pattern_list.any? do |pattern|
+      next true if pattern == '*' || pattern == key
 
-    # Use case-insensitive matching if specified
-    if @options[:insensitive]
-      key.casecmp(pattern).zero? || File.fnmatch(pattern, key, File::FNM_CASEFOLD)
-    else
-      key == pattern || File.fnmatch(pattern, key)
+      # Use case-insensitive matching if specified
+      if @options[:insensitive]
+        key.casecmp(pattern).zero? || File.fnmatch(pattern, key, File::FNM_CASEFOLD)
+      else
+        key == pattern || File.fnmatch(pattern, key)
+      end
     end
   rescue ArgumentError => e
-    puts "Invalid pattern '#{pattern}': #{e.message}"
+    puts "Invalid pattern '#{patterns}': #{e.message}"
     false
   rescue StandardError => e
-    warn "Error matching key '#{key}' with pattern '#{pattern}': #{e.message}"
+    warn "Error matching key '#{key}' with patterns '#{patterns}': #{e.message}"
     false
   end
 end

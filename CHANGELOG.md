@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2025-10-16
+
+### Added
+- **Selective Data Filtering**: New `--only` (`-y`) option for precise control over displayed data types
+  - Filter by config type: `c`/`cfg`/`config` for configs, `s`/`sec`/`secret` for secrets
+  - Filter by scope: `e`/`env`/`environment` for environment data, `g`/`grp`/group` for group data
+  - Flexible input formats: concatenated single chars (`ce`, `sg`) or comma-separated (`cfg,env`)
+  - Case-insensitive parsing with comprehensive validation and error handling
+  - Examples: `-y c` (configs only), `-y ce` (env configs only), `-y s,g` (group secrets only)
+  - Enhanced search to expose group configs as searchable results (previously only used for coloring)
+
+- **Enhanced Pattern Matching**: Comma-separated patterns in `-m`/`--match` option
+  - Support for multiple glob patterns in a single command: `-m "RAILS_ENV,DATABASE_*,REDIS_*"`
+  - OR logic matching: any pattern match includes the result
+  - Maintains backward compatibility with single patterns
+  - Comprehensive test coverage for various pattern combinations
+
+- **Convenient Truncation Control**: New `-T`/`--no-truncate` flag
+  - Quick shorthand for `--truncate=0` to disable output truncation
+  - More intuitive than remembering that `0` means "no truncation"
+  - Properly overrides other truncation settings when combined with other flags
+
+### Technical Improvements
+- Enhanced CLI option parsing with improved validation and error messages
+- Expanded test suite covering all new functionality and edge cases
+- Maintained full backward compatibility with existing command structures
+- All features work seamlessly with existing caching, threading, and export systems
+
 ## [0.14.0] - 2024-10-14
 
 ### Added

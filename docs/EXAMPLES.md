@@ -134,7 +134,7 @@ lall -m "shared_*" -g prod-us -x -p
 ### Standard Table Format
 
 ```bash
-lall -s redis_url -e prod,staging,dev
+lall -m redis_url -e prod,staging,dev
 ```
 
 ```
@@ -146,7 +146,7 @@ lall -s redis_url -e prod,staging,dev
 ### With Full Paths (`-p`)
 
 ```bash
-lall -s redis_url -e prod,staging -p
+lall -m redis_url -e prod,staging -p
 ```
 
 ```
@@ -158,7 +158,7 @@ lall -s redis_url -e prod,staging -p
 ### Pivoted Format (`-v`)
 
 ```bash
-lall -s redis_url -e prod,staging -v
+lall -m redis_url -e prod,staging -v
 ```
 
 ```

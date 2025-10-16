@@ -223,6 +223,102 @@ RSpec.describe LallCLI do
         File.delete(file)
       end
     end
+
+    context 'with truncation settings' do
+      let(:long_value_env_results) do
+        {
+          'env1' => [{ key: 'long_key', value: 'this_is_a_very_long_value_that_should_not_be_truncated_in_exports',
+                       path: 'configs', color: :white }],
+          'env2' => [{ key: 'long_key', value: 'another_very_long_value_for_testing_purposes',
+                       path: 'configs', color: :white }]
+        }
+      end
+
+      let(:long_value_entity_set) do
+        double('entity_set',
+               environments: [
+                 double('env1', name: 'env1',
+                                data: { 'configs' => { 'long_key' => 'this_is_a_very_long_value_that_should_not_be_truncated_in_exports' } }),
+                 double('env2', name: 'env2',
+                                data: { 'configs' => { 'long_key' => 'another_very_long_value_for_testing_purposes' } })
+               ],
+               groups: [])
+      end
+
+      before do
+        allow(long_value_entity_set).to receive(:fetch_all)
+        allow(long_value_entity_set).to receive(:environments).and_return(long_value_entity_set.environments)
+        allow_any_instance_of(LallCLI).to receive(:create_entity_set).and_return(long_value_entity_set)
+        allow_any_instance_of(LallCLI).to receive(:fetch_results_from_entity_set).and_return(long_value_env_results)
+      end
+
+      it 'does not truncate JSON exports when truncate is not specified' do
+        cli = LallCLI.new(['-m', 'long_key', '-e', 'env1,env2', '--format=json'])
+        output = nil
+        expect { output = capture(:stdout) { cli.run } }.not_to raise_error
+
+        expect(output).to include('this_is_a_very_long_value_that_should_not_be_truncated_in_exports')
+        expect(output).to include('another_very_long_value_for_testing_purposes')
+        expect(output).not_to include('...')
+      end
+
+      it 'does not truncate YAML exports when --no-truncate is specified' do
+        cli = LallCLI.new(['-m', 'long_key', '-e', 'env1,env2', '--format=yaml', '-T'])
+        output = nil
+        expect { output = capture(:stdout) { cli.run } }.not_to raise_error
+
+        expect(output).to include('this_is_a_very_long_value_that_should_not_be_truncated_in_exports')
+        expect(output).to include('another_very_long_value_for_testing_purposes')
+        expect(output).not_to include('...')
+      end
+
+      it 'does not truncate CSV exports when truncate is not specified' do
+        cli = LallCLI.new(['-m', 'long_key', '-e', 'env1,env2', '--format=csv'])
+        output = nil
+        expect { output = capture(:stdout) { cli.run } }.not_to raise_error
+
+        expect(output).to include('this_is_a_very_long_value_that_should_not_be_truncated_in_exports')
+        expect(output).to include('another_very_long_value_for_testing_purposes')
+        expect(output).not_to include('...')
+      end
+
+      it 'does not truncate TXT exports when truncate is not specified' do
+        cli = LallCLI.new(['-m', 'long_key', '-e', 'env1,env2', '--format=txt'])
+        output = nil
+        expect { output = capture(:stdout) { cli.run } }.not_to raise_error
+
+        expect(output).to include('this_is_a_very_long_value_that_should_not_be_truncated_in_exports')
+        expect(output).to include('another_very_long_value_for_testing_purposes')
+        expect(output).not_to include('...')
+      end
+
+      it 'truncates exports when --truncate is explicitly specified' do
+        cli = LallCLI.new(['-m', 'long_key', '-e', 'env1,env2', '--format=csv', '--truncate=20'])
+        output = nil
+        expect { output = capture(:stdout) { cli.run } }.not_to raise_error
+
+        expect(output).to include('...')
+        expect(output).not_to include('this_is_a_very_long_value_that_should_not_be_truncated_in_exports')
+      end
+
+      it 'truncates JSON exports when -t is specified' do
+        cli = LallCLI.new(['-m', 'long_key', '-e', 'env1,env2', '--format=json', '-t25'])
+        output = nil
+        expect { output = capture(:stdout) { cli.run } }.not_to raise_error
+
+        expect(output).to include('...')
+        expect(output).not_to include('this_is_a_very_long_value_that_should_not_be_truncated_in_exports')
+      end
+
+      it 'truncates YAML exports when -t is specified' do
+        cli = LallCLI.new(['-m', 'long_key', '-e', 'env1,env2', '--format=yaml', '-t30'])
+        output = nil
+        expect { output = capture(:stdout) { cli.run } }.not_to raise_error
+
+        expect(output).to include('...')
+        expect(output).not_to include('this_is_a_very_long_value_that_should_not_be_truncated_in_exports')
+      end
+    end
     context 'with invalid arguments' do
       it 'exits with error when match is missing' do
         cli = LallCLI.new(['-e', 'prod'])

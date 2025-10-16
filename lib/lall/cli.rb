@@ -876,8 +876,6 @@ class LallCLI
     end
   end
 
-
-
   def parse_only_filter(filter_string)
     return nil if filter_string.nil? || filter_string.empty?
 

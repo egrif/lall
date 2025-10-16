@@ -80,6 +80,54 @@ RSpec.describe LallCLI do
 
         expect(options[:truncate]).to eq(0)
       end
+
+      context 'with --only option' do
+        it 'parses single config type filter' do
+          cli = LallCLI.new(['-m', 'token', '-e', 'prod', '-y', 'c'])
+          options = cli.instance_variable_get(:@options)
+
+          expect(options[:only][:config_type]).to eq(:config)
+          expect(options[:only][:scope_type]).to be_nil
+        end
+
+        it 'parses concatenated filters' do
+          cli = LallCLI.new(['-m', 'token', '-e', 'prod', '-y', 'ce'])
+          options = cli.instance_variable_get(:@options)
+
+          expect(options[:only][:config_type]).to eq(:config)
+          expect(options[:only][:scope_type]).to eq(:environment)
+        end
+
+        it 'parses comma-separated filters' do
+          cli = LallCLI.new(['-m', 'token', '-e', 'prod', '--only=cfg,env'])
+          options = cli.instance_variable_get(:@options)
+
+          expect(options[:only][:config_type]).to eq(:config)
+          expect(options[:only][:scope_type]).to eq(:environment)
+        end
+
+        it 'parses secret and group filters' do
+          cli = LallCLI.new(['-m', 'token', '-e', 'prod', '-y', 'sg'])
+          options = cli.instance_variable_get(:@options)
+
+          expect(options[:only][:config_type]).to eq(:secret)
+          expect(options[:only][:scope_type]).to eq(:group)
+        end
+
+        it 'parses long form aliases' do
+          cli = LallCLI.new(['-m', 'token', '-e', 'prod', '--only=secret,environment'])
+          options = cli.instance_variable_get(:@options)
+
+          expect(options[:only][:config_type]).to eq(:secret)
+          expect(options[:only][:scope_type]).to eq(:environment)
+        end
+
+        it 'handles invalid filter values' do
+          expect {
+            LallCLI.new(['-m', 'token', '-e', 'prod', '--only=invalid'])
+          }.to raise_error(ArgumentError, /Invalid filter value: 'invalid'/)
+        end
+      end
     end
 
     context 'with long-form options' do

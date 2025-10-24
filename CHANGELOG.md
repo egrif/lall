@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.1] - 2025-10-24
+
+### Documentation
+- **Comprehensive README Updates**: Enhanced documentation covering all features through v0.16.0
+  - Added cluster support documentation with examples and auto-detection explanation
+  - Enhanced cache security section with encryption key configuration (`LALL_SECRET_KEY_FILE`)
+  - Updated command line options table with cluster option (`-c`/`--cluster`)
+  - Added cluster usage examples and debug patterns
+  - Updated feature list with proper version tagging (v0.15.0+, v0.16.0+)
+  - Enhanced environment variables section with missing cache configuration options
+  - Updated user settings file examples with `secret_key_file` configuration
+  - Improved cache security documentation with key management best practices
+
+### Technical Improvements
+- All documentation now accurately reflects current feature set and capabilities
+- Enhanced examples covering selective filtering, cluster support, and advanced caching
+
 ## [0.16.0] - 2025-10-24
 
 ### Added

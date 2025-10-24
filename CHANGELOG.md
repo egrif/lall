@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2025-10-24
+
+### Added
+- **Cluster Support**: Enhanced environment management with cluster-based lotus commands
+  - New `-c`/`--cluster` option for specifying cluster instead of space/region combination
+  - Automatic cluster detection from environment names (format: `env-cluster` or `cluster.env`)
+  - Seamless lotus command generation supporting both `--cluster` and traditional `-s/-r` patterns
+  - Maintains full backward compatibility with existing space/region workflows
+  - Enhanced environment entity with cluster parsing and dual command path support
+
+### Technical Improvements
+- Enhanced lotus command generation supporting both cluster and traditional space/region patterns
+- Expanded test suite covering cluster functionality and edge cases
+- Maintained full backward compatibility with existing command structures
+
 ## [0.15.0] - 2025-10-16
 
 ### Added
@@ -26,13 +41,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Quick shorthand for `--truncate=0` to disable output truncation
   - More intuitive than remembering that `0` means "no truncation"
   - Properly overrides other truncation settings when combined with other flags
-
-- **Cluster Support**: Enhanced environment management with cluster-based lotus commands
-  - New `-c`/`--cluster` option for specifying cluster instead of space/region combination
-  - Automatic cluster detection from environment names (format: `env-cluster` or `cluster.env`)
-  - Seamless lotus command generation supporting both `--cluster` and traditional `-s/-r` patterns
-  - Maintains full backward compatibility with existing space/region workflows
-  - Enhanced environment entity with cluster parsing and dual command path support
 
 ### Technical Improvements
 - Enhanced CLI option parsing with improved validation and error messages

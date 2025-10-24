@@ -43,11 +43,17 @@ A Ruby CLI tool for comparing YAML configuration values across multiple environm
   - Cache-first Environment data loading with intelligent fallback
 - **Advanced caching system**: 
   - Redis backend (if `REDIS_URL` available) with Moneta file fallback
-  - Encrypted secret storage using AES-256-GCM
+  - Encrypted secret storage using AES-256-GCM with configurable key location
   - Configurable TTL, cache directories, and prefixes
   - Cache namespace isolation for multi-application environments
   - Selective cache clearing with prefix-aware operations
   - Cache management commands (`--cache-stats`, `--clear-cache`, etc.)
+- **Selective Data Filtering** *(v0.15.0+)*: Precise control with `--only` flag
+  - Filter by config type: configs vs secrets
+  - Filter by scope: environment vs group data
+  - Flexible input parsing with shorthand support
+- **Enhanced Pattern Matching** *(v0.15.0+)*: Comma-separated patterns in `--match` option
+- **Cluster Support** *(v0.16.0+)*: Alternative to space/region with `--cluster` option and auto-detection
 - **Customizable output**: Truncation control, case-insensitive search options, semantic color coding
 - **Debug support**: Built-in debugging capabilities with detailed command output
 - **Modular architecture**: Clean, maintainable code following Single Responsibility Principle
@@ -115,6 +121,7 @@ lall -m MATCH [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
 | `-s` | `--space=SPACE` | Default space for environments if not specified in `-e` | `prod` |
 | `-a` | `--application=APP` | Default application for environments | `greenhouse` |
 | `-r` | `--region=REGION` | Default region for environments if not specified in `-e` | |
+| `-c` | `--cluster=CLUSTER` | Use cluster instead of space/region combination | |
 | `-p` | `--path` | Include the full path column in output | `false` |
 | `-i` | `--insensitive` | Case-insensitive key search | `false` |
 | `-v` | `--pivot` | Pivot table (environments as rows, keys as columns) | `false` |
@@ -153,6 +160,34 @@ groups:
     - prod-s101  # EU region
     - prod-s201  # APAC region
 ```
+
+### Cluster Support (New in v0.16.0)
+
+Lall supports cluster-based lotus commands as an alternative to space/region combinations. This is useful when working with lotus environments that use the `--cluster` flag instead of `-s` and `-r`.
+
+#### Cluster Detection
+
+Environments can specify clusters in several ways:
+
+1. **CLI Override**: Use `-c/--cluster` to specify cluster for all environments
+2. **Auto-detection**: Environment names with cluster format are automatically parsed:
+   - `env-cluster` format: `prod-us-east-1` → cluster: `us-east-1`  
+   - `cluster.env` format: `us-east-1.prod` → cluster: `us-east-1`
+
+#### Examples
+
+```bash
+# Use cluster for all environments
+lall -m api_key -e prod1,prod2 --cluster=us-east-1
+
+# Auto-detect cluster from environment names
+lall -m api_key -e prod-us-east-1,staging-us-east-1
+
+# Mixed usage (some environments with auto-detected clusters)
+lall -m api_key -e prod-us-east-1,prod:prod:use1  # First auto-detects, second uses space:region
+```
+
+When cluster is detected or specified, lotus commands use `--cluster` instead of `-s` and `-r` flags.
 
 ### Output Formats
 
@@ -251,6 +286,22 @@ lall -m '*' -e prod --only secret,group      # Group secrets only
 lall -m '*' -e prod -y se
 ```
 
+### Cluster Examples (New in v0.16.0)
+
+```bash
+# Use cluster for multiple environments
+lall -m database_url -e prod1,prod2 --cluster=us-east-1
+
+# Auto-detect cluster from environment names  
+lall -m api_* -e prod-us-east-1,staging-us-west-2
+
+# Mixed cluster and traditional space/region usage
+lall -m redis_* -e prod-us-east-1,prod:prod:use1
+
+# Debug cluster detection
+lall -m config -e prod-cluster-name -d      # Shows lotus commands with --cluster
+```
+
 ### Advanced Usage
 
 ```bash
@@ -345,7 +396,23 @@ Cache entries are isolated using configurable prefixes, allowing multiple applic
 
 ### Security
 
-All cached data is encrypted using AES-256-GCM encryption. A unique encryption key is generated per session and stored securely.
+All cached data is encrypted using AES-256-GCM encryption for security:
+
+- **Automatic Key Generation**: A unique encryption key is generated per session and stored securely
+- **Key Storage**: Encryption keys are stored in `~/.lall/cache/.secret_key` by default
+- **Custom Key Location**: Set `LALL_SECRET_KEY_FILE` environment variable to use a custom location
+- **Secret Data Protection**: All secret values are encrypted before caching, ensuring sensitive data is never stored in plain text
+- **Cache Isolation**: Each cache prefix can maintain separate encryption contexts
+
+#### Environment Variables for Cache Security
+
+```bash
+# Set custom location for encryption key file
+export LALL_SECRET_KEY_FILE=/secure/path/to/cache_key
+
+# Ensure secure permissions on key file
+chmod 600 $LALL_SECRET_KEY_FILE
+```
 
 ### Cache Configuration
 
@@ -392,13 +459,14 @@ Lall follows a clear priority order for configuration settings:
 Set these environment variables to configure default behavior:
 
 ```bash
-export LALL_CACHE_TTL=7200          # Cache TTL in seconds
-export LALL_CACHE_DIR=/my/cache     # Cache directory path
-export LALL_CACHE_PREFIX=my-app     # Cache key prefix for isolation
-export LALL_CACHE_ENABLED=false     # Enable/disable caching
-export LALL_DEBUG=true              # Enable debug output
-export LALL_TRUNCATE=60             # Default truncation length
-export REDIS_URL=redis://localhost  # Redis connection URL
+export LALL_CACHE_TTL=7200              # Cache TTL in seconds
+export LALL_CACHE_DIR=/my/cache         # Cache directory path
+export LALL_CACHE_PREFIX=my-app         # Cache key prefix for isolation
+export LALL_CACHE_ENABLED=false         # Enable/disable caching
+export LALL_SECRET_KEY_FILE=/secure/key # Custom cache encryption key location
+export LALL_DEBUG=true                  # Enable debug output
+export LALL_TRUNCATE=60                 # Default truncation length
+export REDIS_URL=redis://localhost      # Redis connection URL
 ```
 
 #### User Settings File
@@ -418,6 +486,7 @@ cache:
   directory: ~/my-lall-cache   # Custom cache location
   prefix: my-app               # Custom cache prefix for isolation
   enabled: true                # Enable caching by default
+  secret_key_file: ~/.lall/cache/secret_key  # Custom encryption key location
 
 output:
   debug: false                 # Disable debug by default

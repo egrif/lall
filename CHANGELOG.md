@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - More intuitive than remembering that `0` means "no truncation"
   - Properly overrides other truncation settings when combined with other flags
 
+- **Cluster Support**: Enhanced environment management with cluster-based lotus commands
+  - New `-c`/`--cluster` option for specifying cluster instead of space/region combination
+  - Automatic cluster detection from environment names (format: `env-cluster` or `cluster.env`)
+  - Seamless lotus command generation supporting both `--cluster` and traditional `-s/-r` patterns
+  - Maintains full backward compatibility with existing space/region workflows
+  - Enhanced environment entity with cluster parsing and dual command path support
+
 ### Technical Improvements
 - Enhanced CLI option parsing with improved validation and error messages
 - Expanded test suite covering all new functionality and edge cases

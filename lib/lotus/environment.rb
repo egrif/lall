@@ -6,14 +6,32 @@ module Lotus
   class Environment < NotSecret
     attr_reader :group, :secrets
 
-    def initialize(name, space: nil, region: nil, application: 'greenhouse', parent: nil)
+    def initialize(name, space: nil, region: nil, cluster: nil, application: 'greenhouse', parent: nil)
       vals = name.split(':')
 
       name = vals[0]
-      space = vals[1] if vals.length > 1 && !vals[1].to_s.empty?
-      region = vals[2] if vals.length > 2 && !vals[2].to_s.empty?
+      parsed_space = vals[1] if vals.length > 1 && !vals[1].to_s.empty?
+      parsed_region = vals[2] if vals.length > 2 && !vals[2].to_s.empty?
 
-      super(name, space: space, region: region, application: application, parent: parent) # rubocop:disable Style/SuperArguments
+      # Handle cluster detection from parsed space: if space has at least 1 "-", it's a cluster
+      if parsed_space&.include?('-')
+        cluster = parsed_space
+        space = nil
+        region = nil
+      else
+        # Use parsed values if available, otherwise fall back to defaults
+        space = parsed_space || space
+        region = parsed_region || region
+
+        # If no space/region specified but cluster is provided, use cluster
+        if !space && !region && cluster
+          # Keep the cluster, clear space/region
+          space = nil
+          region = nil
+        end
+      end
+
+      super(name, space: space, region: region, cluster: cluster, application: application, parent: parent) # rubocop:disable Style/SuperArguments
     end
 
     def group_name
@@ -48,7 +66,11 @@ module Lotus
 
     # Implement abstract methods from Entity
     def lotus_cmd
-      "lotus view -s #{space} -r #{region} -e #{@name} -a #{@application} -G"
+      if @cluster
+        "lotus view --cluster #{@cluster} -e #{@name} -a #{@application} -G"
+      else
+        "lotus view -s #{space} -r #{region} -e #{@name} -a #{@application} -G"
+      end
     end
 
     def key_to_secrets

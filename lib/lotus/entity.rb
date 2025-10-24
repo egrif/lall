@@ -6,13 +6,14 @@ module Lotus
   # Base class for Lotus entities (Environment and Group)
   # Provides common functionality for data fetching and region/space logic
   class Entity
-    attr_reader :name, :data, :application, :space, :region, :secrets
+    attr_reader :name, :data, :application, :space, :region, :cluster, :secrets
     attr_accessor :parent_entity
 
-    def initialize(name, space: nil, region: nil, application: 'greenhouse', parent: nil)
+    def initialize(name, space: nil, region: nil, cluster: nil, application: 'greenhouse', parent: nil)
       @name = name
       @space = space
       @region = region
+      @cluster = cluster
       @application = application
       @data = nil # Will be loaded later via fetch method
       @secrets = [] # Will be populated after data is loaded

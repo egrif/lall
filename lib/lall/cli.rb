@@ -112,6 +112,9 @@ class LallCLI
     opts.on('-rREGION', '--region=REGION', 'Default region for environments') do |v|
       @raw_options[:region] = v
     end
+    opts.on('-cCLUSTER', '--cluster=CLUSTER', 'Default cluster for environments (alternative to space/region)') do |v|
+      @raw_options[:cluster] = v
+    end
   end
 
   def setup_format_options(opts)
@@ -338,6 +341,7 @@ class LallCLI
     resolved[:match] = @raw_options[:match]
     resolved[:env] = @raw_options[:env]
     resolved[:group] = @raw_options[:group]
+    resolved[:cluster] = @raw_options[:cluster]
     resolved[:only] = parse_only_filter(@raw_options[:only]) if @raw_options[:only]
   end
 

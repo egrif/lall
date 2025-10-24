@@ -116,6 +116,7 @@ module Lotus
       options = {}
       options[:space] = @settings.get('space') if @settings.get('space')
       options[:region] = @settings.get('region') if @settings.get('region')
+      options[:cluster] = @settings.get('cluster') if @settings.get('cluster')
       options[:application] = @settings.get('application') if @settings.get('application')
 
       target_environments.each do |env_name|

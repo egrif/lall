@@ -6,7 +6,11 @@ module Lotus
   class Secret < Entity
     # Implement abstract methods from Entity
     def lotus_cmd
-      cmd = "lotus secret get #{name} -s #{space} -r #{region} -a #{@application}"
+      cmd = if @cluster
+              "lotus secret get #{name} --cluster #{@cluster} -a #{@application}"
+            else
+              "lotus secret get #{name} -s #{space} -r #{region} -a #{@application}"
+            end
       cmd += secret_type == 'group' ? ' -g ' : ' -e '
       cmd += parent_entity.name.to_s
       cmd

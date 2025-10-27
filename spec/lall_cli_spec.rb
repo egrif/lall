@@ -207,12 +207,12 @@ RSpec.describe LallCLI do
 
       it 'displays results in keyvalue format with --format=keyvalue' do
         cli = LallCLI.new(['-m', 'api_token', '-e', 'env1,env2', '--format=keyvalue'])
-        expect { cli.run }.to output(/env1:\s*api_token: 'token1'.*env2:\s*api_token: 'token2'/m).to_stdout
+        expect { cli.run }.to output(/env1:\s*configs:\s*api_token: 'token1'.*env2:\s*configs:\s*api_token: 'token2'/m).to_stdout
       end
 
       it 'displays results in keyvalue format with -fkv' do
         cli = LallCLI.new(['-m', 'api_token', '-e', 'env1,env2', '-fkv'])
-        expect { cli.run }.to output(/env1:\s*api_token: 'token1'.*env2:\s*api_token: 'token2'/m).to_stdout
+        expect { cli.run }.to output(/env1:\s*configs:\s*api_token: 'token1'.*env2:\s*configs:\s*api_token: 'token2'/m).to_stdout
       end
 
       it 'writes exported results to file with --output-file' do

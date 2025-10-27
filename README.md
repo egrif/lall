@@ -241,17 +241,23 @@ lall -m api_token -e prod,staging --format=keyvalue
 ```
 ```
 prod:
-  api_token: 'token123'
+  configs:
+    api_token: 'token123'
 
 staging:
-  api_token: 'token456'
+  configs:
+    api_token: 'token456'
 ```
 
-This format groups results by environment without headers, making it ideal for:
+This format groups results by environment without table headers, with configs and secrets grouped separately. It's ideal for:
 - Configuration file generation
 - Script processing  
 - Environment-specific output review
 - Integration with other tools expecting key-value format
+
+Results are organized as:
+- `configs:` section for configuration values (from environment and group configs)
+- `secrets:` section for secret values (from environment and group secrets)
 
 Environment headers automatically detect and display space/region information when available.
 

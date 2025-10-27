@@ -251,13 +251,13 @@ class LallCLI
     # Export logic
     if @options[:export]
       export_format = @options[:export]
-      
+
       # Handle keyvalue/kv formats as display formats instead of export formats
-      if [:keyvalue, :kv].include?(export_format)
+      if %i[keyvalue kv].include?(export_format)
         display_results(successful_envs, env_results, export_format)
         return
       end
-      
+
       output_file = @options[:output_file]
       # Only use truncation for export if explicitly set by user
       truncate = @raw_options[:truncate] # Use raw options to avoid settings fallback
@@ -677,7 +677,7 @@ class LallCLI
       return
     end
 
-    if [:keyvalue, :kv].include?(format)
+    if %i[keyvalue kv].include?(format)
       TableFormatter.new([], envs, env_results, @options, @settings).print_keyvalue_format(envs, env_results)
     else
       format_and_display_table(envs, env_results, all_keys, all_paths)

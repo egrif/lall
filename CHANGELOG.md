@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Key-Value Output Format**: New `keyvalue`/`kv` format option for environment-grouped output
   - Accessible via `--format=keyvalue` or `-fkv` for clean, header-free display
   - Groups results by environment with format: `ENV/SPACE/REGION:`
-  - Outputs key-value pairs with proper indentation: `  KEY: 'VALUE'`
+  - Separates configs and secrets into distinct sections: `configs:` and `secrets:`
+  - Outputs key-value pairs with proper indentation: `    KEY: 'VALUE'`
   - Automatic environment header parsing for colon-separated and suffix formats
   - Ideal for configuration file generation, script processing, and tool integration
   - Maintains color coding and truncation support from standard table format

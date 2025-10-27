@@ -59,6 +59,16 @@ module SpecHelpers
       }
     }
   end
+
+  def capture(stream)
+    stream = stream.to_s
+    eval "$#{stream} = StringIO.new"
+    yield
+    result = eval("$#{stream}").string
+  ensure
+    eval "$#{stream} = #{stream.upcase}"
+    result
+  end
 end
 
 RSpec.configure do |config|

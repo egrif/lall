@@ -714,7 +714,7 @@ class LallCLI
       data[env] = {}
       env_results[env].each do |r|
         value = r[:value].to_s
-        value = TableFormatter.truncate_middle(value, truncate) if truncate
+        value = TableFormatter.truncate_middle(value, truncate) if truncate&.positive?
         data[env][r[:key]] = value
       end
     end
@@ -728,7 +728,7 @@ class LallCLI
       data[env] = {}
       env_results[env].each do |r|
         value = r[:value].to_s
-        value = TableFormatter.truncate_middle(value, truncate) if truncate
+        value = TableFormatter.truncate_middle(value, truncate) if truncate&.positive?
         data[env][r[:key]] = value
       end
     end
@@ -745,7 +745,7 @@ class LallCLI
       envs.each do |env|
         match = env_results[env].find { |r| r[:key] == key }
         value = match ? match[:value].to_s : ''
-        value = TableFormatter.truncate_middle(value, truncate) if truncate
+        value = TableFormatter.truncate_middle(value, truncate) if truncate&.positive?
         row << value
       end
       lines << row.join("\t")

@@ -301,4 +301,69 @@ class TableFormatter
       puts row unless envs.all? { |env| env_results[env].none? { |r| r[:key] == key } }
     end
   end
+
+  def print_keyvalue_format(envs, env_results)
+    envs.each do |env|
+      # Build environment header - extract space and region from env if possible  
+      env_header = build_environment_header(env)
+      puts "#{env_header}:"
+      
+      # Get all results for this environment and sort by key
+      env_matches = env_results[env] || []
+      env_matches.sort_by { |match| match[:key] }.each do |match|
+        value_str = if match[:value]
+                      match[:value].is_a?(String) ? match[:value] : match[:value].inspect
+                    else
+                      ''
+                    end
+        
+        # Apply truncation if specified
+        value_str = TableFormatter.truncate_middle(value_str, @truncate) if @truncate&.positive?
+        
+        # Apply color formatting
+        colored_value_str = colorize_value(value_str, match&.[](:color))
+        
+        puts "  #{match[:key]}: '#{colored_value_str}'"
+      end
+      
+      # Add blank line between environments unless this is the last one
+      puts "" unless env == envs.last
+    end
+  end
+
+  private
+
+  def build_environment_header(env)
+    # Try to extract space/region info from environment name patterns
+    # Format: ENV/SPACE/REGION
+    
+    # Check if env has space/region info embedded (basic heuristic)
+    # This is a simplified approach - in a real scenario, we'd want access to the Environment object
+    if env.include?(':')
+      # Format like "env:space:region"
+      parts = env.split(':')
+      case parts.length
+      when 3
+        "#{parts[0]}/#{parts[1]}/#{parts[2]}"
+      when 2  
+        "#{parts[0]}/#{parts[1]}"
+      else
+        env
+      end
+    elsif env.match(/^(\w+)-s(\d+)$/)
+      # Format like "prod-s101" -> extract region based on suffix
+      base_env = $1
+      suffix = $2.to_i
+      region = case suffix
+               when 1..99 then 'use1'
+               when 101..199 then 'euc1'
+               when 201..299 then 'apse2'
+               else 'unknown'
+               end
+      "#{base_env}/prod/#{region}"
+    else
+      # Default format - just use env name, could be enhanced with space/region from settings
+      env
+    end
+  end
 end

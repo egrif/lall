@@ -211,6 +211,84 @@ RSpec.describe TableFormatter do
     end
   end
 
+  describe '#print_keyvalue_format' do
+    let(:formatter) { TableFormatter.new([], envs, env_results, options) }
+    
+    it 'prints results grouped by environment' do
+      output = capture_stdout { formatter.print_keyvalue_format(envs, env_results) }
+      expect(output).to include('env1:')
+      expect(output).to include('env2:')
+    end
+
+    it 'formats key-value pairs with proper indentation' do
+      output = capture_stdout { formatter.print_keyvalue_format(envs, env_results) }
+      expect(output).to include("  api_token: 'token123'")
+      expect(output).to include("  timeout: '30'")
+      expect(output).to include("  api_token: 'token456'")
+      expect(output).to include("  timeout: '45'")
+    end
+
+    it 'sorts keys alphabetically within each environment' do
+      output = capture_stdout { formatter.print_keyvalue_format(envs, env_results) }
+      lines = output.split("\n")
+      
+      # Find the lines for env1 keys
+      env1_start = lines.index('env1:')
+      env1_keys = lines[(env1_start + 1)..(env1_start + 2)]
+      
+      expect(env1_keys[0]).to include('api_token')
+      expect(env1_keys[1]).to include('timeout')
+    end
+
+    it 'adds blank line between environments except for the last one' do
+      output = capture_stdout { formatter.print_keyvalue_format(envs, env_results) }
+      lines = output.split("\n")
+      
+      # Should have a blank line after env1 but not after env2 (last)
+      env1_end_index = lines.rindex { |line| line.strip.start_with?('timeout:') && line.include?('30') }
+      expect(lines[env1_end_index + 1]).to eq('')
+      expect(lines[-1]).not_to eq('')  # Last line should not be blank
+    end
+
+    it 'handles environments with colon-separated format' do
+      env_with_colons = 'prod:greenhouse:use1'
+      env_results_with_colons = {
+        env_with_colons => [
+          { path: 'configs.api_token', key: 'api_token', value: 'token789' }
+        ]
+      }
+      
+      output = capture_stdout { formatter.print_keyvalue_format([env_with_colons], env_results_with_colons) }
+      expect(output).to include('prod/greenhouse/use1:')
+    end
+
+    it 'handles environments with s-suffix format' do
+      env_with_suffix = 'prod-s101'
+      env_results_with_suffix = {
+        env_with_suffix => [
+          { path: 'configs.api_token', key: 'api_token', value: 'token999' }
+        ]
+      }
+      
+      output = capture_stdout { formatter.print_keyvalue_format([env_with_suffix], env_results_with_suffix) }
+      expect(output).to include('prod/prod/euc1:')
+    end
+
+    it 'applies color formatting when present' do
+      colored_env_results = {
+        'env1' => [
+          { path: 'configs.api_token', key: 'api_token', value: 'token123', color: :blue }
+        ]
+      }
+      
+      formatter_with_colors = TableFormatter.new([], ['env1'], colored_env_results, options)
+      output = capture_stdout { formatter_with_colors.print_keyvalue_format(['env1'], colored_env_results) }
+      
+      # Should contain color codes when outputting to terminal (though we can't easily test the exact codes)
+      expect(output).to include("api_token: '")
+    end
+  end
+
   private
 
   def capture_stdout

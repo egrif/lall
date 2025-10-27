@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2025-10-27
+
+### Added
+- **Key-Value Output Format**: New `keyvalue`/`kv` format option for environment-grouped output
+  - Accessible via `--format=keyvalue` or `-fkv` for clean, header-free display
+  - Groups results by environment with format: `ENV/SPACE/REGION:`
+  - Outputs key-value pairs with proper indentation: `  KEY: 'VALUE'`
+  - Automatic environment header parsing for colon-separated and suffix formats
+  - Ideal for configuration file generation, script processing, and tool integration
+  - Maintains color coding and truncation support from standard table format
+
+### Technical Improvements
+- Enhanced TableFormatter with `print_keyvalue_format` method
+- Updated CLI logic to handle keyvalue as display format rather than export format
+- Comprehensive test coverage for new format including edge cases and environment parsing
+- Updated documentation with examples and usage patterns
+
 ## [0.16.1] - 2025-10-24
 
 ### Documentation

@@ -205,6 +205,16 @@ RSpec.describe LallCLI do
         expect { cli.run }.to output(/Key\tenv1\tenv2\napi_token\ttoken1\ttoken2/).to_stdout
       end
 
+      it 'displays results in keyvalue format with --format=keyvalue' do
+        cli = LallCLI.new(['-m', 'api_token', '-e', 'env1,env2', '--format=keyvalue'])
+        expect { cli.run }.to output(/env1:\s*api_token: 'token1'.*env2:\s*api_token: 'token2'/m).to_stdout
+      end
+
+      it 'displays results in keyvalue format with -fkv' do
+        cli = LallCLI.new(['-m', 'api_token', '-e', 'env1,env2', '-fkv'])
+        expect { cli.run }.to output(/env1:\s*api_token: 'token1'.*env2:\s*api_token: 'token2'/m).to_stdout
+      end
+
       it 'writes exported results to file with --output-file' do
         file = 'tmp/test_export.txt'
         File.delete(file) if File.exist?(file)

@@ -136,8 +136,8 @@ class LallCLI
             'Examples: -y c (configs only), -y ce (configs+env only), -y cfg,env (same)') do |v|
       @raw_options[:only] = v
     end
-    opts.on('-fFORMAT', '--format=FORMAT', %i[csv json yaml txt],
-            'Export results to file in FORMAT (csv, json, yaml, txt)') do |v|
+    opts.on('-fFORMAT', '--format=FORMAT', %i[csv json yaml txt keyvalue kv],
+            'Export results to file in FORMAT (csv, json, yaml, txt) or display as keyvalue/kv') do |v|
       @raw_options[:export] = v
     end
     opts.on('-oPATH', '--output-file=PATH', 'Write exported results to PATH (default: stdout)') do |v|
@@ -251,6 +251,13 @@ class LallCLI
     # Export logic
     if @options[:export]
       export_format = @options[:export]
+      
+      # Handle keyvalue/kv formats as display formats instead of export formats
+      if [:keyvalue, :kv].include?(export_format)
+        display_results(successful_envs, env_results, export_format)
+        return
+      end
+      
       output_file = @options[:output_file]
       # Only use truncation for export if explicitly set by user
       truncate = @raw_options[:truncate] # Use raw options to avoid settings fallback
@@ -661,7 +668,7 @@ class LallCLI
       (@options[:env] || @options[:group])
   end
 
-  def display_results(envs, env_results)
+  def display_results(envs, env_results, format = nil)
     all_keys = extract_all_keys(env_results)
     all_paths = extract_all_paths(env_results)
 
@@ -670,7 +677,11 @@ class LallCLI
       return
     end
 
-    format_and_display_table(envs, env_results, all_keys, all_paths)
+    if [:keyvalue, :kv].include?(format)
+      TableFormatter.new([], envs, env_results, @options, @settings).print_keyvalue_format(envs, env_results)
+    else
+      format_and_display_table(envs, env_results, all_keys, all_paths)
+    end
   end
 
   # Export helpers

@@ -128,6 +128,8 @@ lall -m MATCH [-e ENV[,ENV2,...]] [-g GROUP] [OPTIONS]
 | `-t[LEN]` | `--truncate[=LEN]` | Truncate values longer than LEN characters | `0` |
 | `-T` | `--no-truncate` | Disable truncation (equivalent to `--truncate=0`) | `false` |
 | `-y` | `--only=FILTER` | Filter data types: c/cfg/config, s/sec/secret, e/env/environment, g/grp/group | |
+| `-f` | `--format=FORMAT` | Output format: csv, json, yaml, txt, keyvalue/kv | |
+| `-o` | `--output-file=PATH` | Write formatted results to PATH (default: stdout) | |
 | `-x` | `--expose` | Expose actual secret values (fetches from lotus) | `false` |
 | `-d` | `--debug` | Enable debug output (shows lotus commands) | `false` |
 | | `--cache-ttl=SECONDS` | Set cache TTL in seconds | `3600` |
@@ -233,6 +235,32 @@ lall -m api_token -e prod,staging -v
 | staging | token456  |
 ```
 
+#### Key-Value Format (`--format=keyvalue` or `-fkv`)
+```bash
+lall -m api_token -e prod,staging --format=keyvalue
+```
+```
+prod:
+  configs:
+    api_token: 'token123'
+
+staging:
+  configs:
+    api_token: 'token456'
+```
+
+This format groups results by environment without table headers, with configs and secrets grouped separately. It's ideal for:
+- Configuration file generation
+- Script processing  
+- Environment-specific output review
+- Integration with other tools expecting key-value format
+
+Results are organized as:
+- `configs:` section for configuration values (from environment and group configs)
+- `secrets:` section for secret values (from environment and group secrets)
+
+Environment headers automatically detect and display space/region information when available.
+
 ### Secret Management
 
 The tool can handle two types of secrets:
@@ -300,6 +328,19 @@ lall -m redis_* -e prod-us-east-1,prod:prod:use1
 
 # Debug cluster detection
 lall -m config -e prod-cluster-name -d      # Shows lotus commands with --cluster
+```
+
+### Key-Value Format Examples (New in v0.16.1)
+
+```bash
+# Generate configuration file format
+lall -m database_* -e prod,staging --format=keyvalue
+
+# Script-friendly output for environment comparison
+lall -m api_* -g prod-us -fkv
+
+# Environment-grouped output without table headers
+lall -m '*' -e prod:greenhouse:use1 --format=kv --only=config
 ```
 
 ### Advanced Usage

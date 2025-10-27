@@ -45,7 +45,8 @@
     "grps",
     "popen",
     "Rakefile",
-    "srand"
+    "srand",
+    "keyvalue"
   ],
   "ignorePaths": [
     "node_modules/**",

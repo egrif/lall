@@ -167,8 +167,8 @@ RSpec.describe LallCLI do
     context 'with export functionality' do
       let(:env_results) do
         {
-          'env1' => [{ key: 'api_token', value: 'token1' }],
-          'env2' => [{ key: 'api_token', value: 'token2' }]
+          'env1' => [{ path: 'configs', key: 'api_token', value: 'token1' }],
+          'env2' => [{ path: 'configs', key: 'api_token', value: 'token2' }]
         }
       end
 
@@ -203,6 +203,16 @@ RSpec.describe LallCLI do
       it 'exports results as TXT to stdout with -ftxt' do
         cli = LallCLI.new(['-m', 'api_token', '-e', 'env1,env2', '-ftxt'])
         expect { cli.run }.to output(/Key\tenv1\tenv2\napi_token\ttoken1\ttoken2/).to_stdout
+      end
+
+      it 'displays results in keyvalue format with --format=keyvalue' do
+        cli = LallCLI.new(['-m', 'api_token', '-e', 'env1,env2', '--format=keyvalue'])
+        expect { cli.run }.to output(/env1:\s*configs:\s*api_token: 'token1'.*env2:\s*configs:\s*api_token: 'token2'/m).to_stdout
+      end
+
+      it 'displays results in keyvalue format with -fkv' do
+        cli = LallCLI.new(['-m', 'api_token', '-e', 'env1,env2', '-fkv'])
+        expect { cli.run }.to output(/env1:\s*configs:\s*api_token: 'token1'.*env2:\s*configs:\s*api_token: 'token2'/m).to_stdout
       end
 
       it 'writes exported results to file with --output-file' do

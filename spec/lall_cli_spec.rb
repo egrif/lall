@@ -167,8 +167,8 @@ RSpec.describe LallCLI do
     context 'with export functionality' do
       let(:env_results) do
         {
-          'env1' => [{ key: 'api_token', value: 'token1' }],
-          'env2' => [{ key: 'api_token', value: 'token2' }]
+          'env1' => [{ path: 'configs', key: 'api_token', value: 'token1' }],
+          'env2' => [{ path: 'configs', key: 'api_token', value: 'token2' }]
         }
       end
 

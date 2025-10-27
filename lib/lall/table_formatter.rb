@@ -304,63 +304,48 @@ class TableFormatter
 
   def print_keyvalue_format(envs, env_results)
     envs.each do |env|
-      # Build environment header - extract space and region from env if possible
-      env_header = build_environment_header(env)
-      puts "#{env_header}:"
-
-      # Get all results for this environment
-      env_matches = env_results[env] || []
-
-      # Separate configs and secrets based on path
-      configs = env_matches.select { |match| match[:path] == 'configs' || match[:path] == 'group_configs' }
-      secrets = env_matches.select { |match| match[:path] == 'secrets' || match[:path] == 'group_secrets' }
-
-      # Print configs first if any exist
-      unless configs.empty?
-        puts '  configs:'
-        configs.sort_by { |match| match[:key] }.each do |match|
-          value_str = if match[:value]
-                        match[:value].is_a?(String) ? match[:value] : match[:value].inspect
-                      else
-                        ''
-                      end
-
-          # Apply truncation if specified
-          value_str = TableFormatter.truncate_middle(value_str, @truncate) if @truncate&.positive?
-
-          # Apply color formatting
-          colored_value_str = colorize_value(value_str, match&.[](:color))
-
-          puts "    #{match[:key]}: '#{colored_value_str}'"
-        end
-      end
-
-      # Print secrets if any exist
-      unless secrets.empty?
-        puts '  secrets:'
-        secrets.sort_by { |match| match[:key] }.each do |match|
-          value_str = if match[:value]
-                        match[:value].is_a?(String) ? match[:value] : match[:value].inspect
-                      else
-                        ''
-                      end
-
-          # Apply truncation if specified
-          value_str = TableFormatter.truncate_middle(value_str, @truncate) if @truncate&.positive?
-
-          # Apply color formatting
-          colored_value_str = colorize_value(value_str, match&.[](:color))
-
-          puts "    #{match[:key]}: '#{colored_value_str}'"
-        end
-      end
-
-      # Add blank line between environments unless this is the last one
+      print_environment_keyvalue_section(env, env_results[env] || [])
       puts '' unless env == envs.last
     end
   end
 
   private
+
+  def print_environment_keyvalue_section(env, env_matches)
+    # Build environment header - extract space and region from env if possible
+    env_header = build_environment_header(env)
+    puts "#{env_header}:"
+
+    # Separate configs and secrets based on path
+    configs = env_matches.select { |match| %w[configs group_configs].include?(match[:path]) }
+    secrets = env_matches.select { |match| %w[secrets group_secrets].include?(match[:path]) }
+
+    # Print configs and secrets sections
+    print_keyvalue_section('configs', configs) unless configs.empty?
+    print_keyvalue_section('secrets', secrets) unless secrets.empty?
+  end
+
+  def print_keyvalue_section(section_name, matches)
+    puts "  #{section_name}:"
+    matches.sort_by { |match| match[:key] }.each do |match|
+      value_str = format_keyvalue_match_value(match)
+      puts "    #{match[:key]}: '#{value_str}'"
+    end
+  end
+
+  def format_keyvalue_match_value(match)
+    value_str = if match[:value]
+                  match[:value].is_a?(String) ? match[:value] : match[:value].inspect
+                else
+                  ''
+                end
+
+    # Apply truncation if specified
+    value_str = TableFormatter.truncate_middle(value_str, @truncate) if @truncate&.positive?
+
+    # Apply color formatting
+    colorize_value(value_str, match&.[](:color))
+  end
 
   def build_environment_header(env)
     # Try to extract space/region info from environment name patterns

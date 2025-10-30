@@ -24,22 +24,7 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ matrix.ruby-version }}
-        bundler-cache: false
-        bundler: 'none'
-
-    - name: Install compatible bundler
-      run: |
-        if [ "${{ matrix.ruby-version }}" = "2.7" ]; then
-          gem install bundler -v "~> 2.4.0"
-        else
-          gem install bundler -v "~> 2.5.0"
-        fi
-        
-    - name: Configure bundler and install dependencies
-      run: |
-        bundle config set frozen false
-        bundle config set deployment false
-        bundle install
+        bundler-cache: true
 
     - name: Debug bundle info
       run: |
@@ -81,13 +66,7 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.3'
-        bundler-cache: false
-
-    - name: Configure bundler and install dependencies
-      run: |
-        bundle config set frozen false
-        bundle config set deployment false
-        bundle install
+        bundler-cache: true
 
     - name: Run bundle audit
       run: |
@@ -103,13 +82,7 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.3'
-        bundler-cache: false
-
-    - name: Configure bundler and install dependencies
-      run: |
-        bundle config set frozen false
-        bundle config set deployment false
-        bundle install
+        bundler-cache: true
 
     - name: Lint with RuboCop
       run: bundle exec rubocop

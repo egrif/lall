@@ -24,7 +24,26 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ matrix.ruby-version }}
-        bundler-cache: true
+        bundler-cache: false
+
+    - name: Install compatible Bundler
+      run: |
+        if [[ "${{ matrix.ruby-version }}" == "2.7" || "${{ matrix.ruby-version }}" == "3.0" ]]; then
+          gem install bundler -v '~> 2.3.0'
+        else
+          gem install bundler -v '~> 2.7.0'
+        fi
+
+    - name: Cache bundle
+      uses: actions/cache@v4
+      with:
+        path: vendor/bundle
+        key: ${{ runner.os }}-gems-${{ matrix.ruby-version }}-${{ hashFiles('**/Gemfile.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-gems-${{ matrix.ruby-version }}-
+
+    - name: Bundle install
+      run: bundle install --jobs 4 --retry 3 --path vendor/bundle
 
     - name: Debug bundle info
       run: |
@@ -66,7 +85,21 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.3'
-        bundler-cache: true
+        bundler-cache: false
+
+    - name: Install Bundler
+      run: gem install bundler -v '~> 2.7.0'
+
+    - name: Cache bundle
+      uses: actions/cache@v4
+      with:
+        path: vendor/bundle
+        key: ${{ runner.os }}-gems-3.3-${{ hashFiles('**/Gemfile.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-gems-3.3-
+
+    - name: Bundle install
+      run: bundle install --jobs 4 --retry 3 --path vendor/bundle
 
     - name: Run bundle audit
       run: |
@@ -82,7 +115,21 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.3'
-        bundler-cache: true
+        bundler-cache: false
+
+    - name: Install Bundler
+      run: gem install bundler -v '~> 2.7.0'
+
+    - name: Cache bundle
+      uses: actions/cache@v4
+      with:
+        path: vendor/bundle
+        key: ${{ runner.os }}-gems-3.3-${{ hashFiles('**/Gemfile.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-gems-3.3-
+
+    - name: Bundle install
+      run: bundle install --jobs 4 --retry 3 --path vendor/bundle
 
     - name: Lint with RuboCop
       run: bundle exec rubocop

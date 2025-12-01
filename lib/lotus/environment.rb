@@ -44,10 +44,13 @@ module Lotus
 
     # Environment defaults
     def space
+      return nil if @cluster
+
       @space || (@name.match?(/^(prod|staging)/) ? 'prod' : 'dev')
     end
 
     def region
+      return nil if @cluster
       return @region if @region
 
       # Extract region from entity name

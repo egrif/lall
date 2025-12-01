@@ -146,6 +146,14 @@ RSpec.describe Lotus::Group do
       expected_cmd = 'lotus view -s prod -r use1 -a greenhouse -g test-group'
       expect(group.lotus_cmd).to eq(expected_cmd)
     end
+
+    context 'when cluster is provided' do
+      it 'constructs cluster-aware lotus command' do
+        group = Lotus::Group.new('test-group', cluster: 'prod-use1-0', application: 'greenhouse')
+        expected_cmd = 'lotus view --cluster prod-use1-0 -a greenhouse -g test-group'
+        expect(group.lotus_cmd).to eq(expected_cmd)
+      end
+    end
   end
 
   describe '#lotus_parse' do

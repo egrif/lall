@@ -155,6 +155,7 @@ module Lotus
         group_name,
         space: environment.space,
         region: environment.region,
+        cluster: environment.cluster,
         application: environment.application,
         parent: self
       )

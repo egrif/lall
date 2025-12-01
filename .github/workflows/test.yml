@@ -25,7 +25,7 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
-        bundler: default
+        bundler: 2.3.26
 
     - name: Debug bundle info
       run: |
@@ -68,7 +68,7 @@ jobs:
       with:
         ruby-version: '3.3'
         bundler-cache: true
-        bundler: default
+        bundler: 2.3.26
 
     - name: Run bundle audit
       run: |
@@ -85,7 +85,7 @@ jobs:
       with:
         ruby-version: '3.3'
         bundler-cache: true
-        bundler: default
+        bundler: 2.3.26
 
     - name: Lint with RuboCop
       run: bundle exec rubocop

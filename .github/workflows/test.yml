@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        ruby-version: ['2.7', '3.0', '3.1', '3.2', '3.3', '3.4']
+        ruby-version: ['3.1', '3.2', '3.3', '3.4']
 
     steps:
     - uses: actions/checkout@v4
@@ -24,28 +24,7 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ matrix.ruby-version }}
-        bundler-cache: false
-
-    - name: Install compatible Bundler
-      run: |
-        if [[ "${{ matrix.ruby-version }}" == "2.7" || "${{ matrix.ruby-version }}" == "3.0" ]]; then
-          gem install bundler -v '2.4.22' --force
-        else
-          gem install bundler -v '2.7.2'
-        fi
-
-    - name: Cache bundle
-      uses: actions/cache@v4
-      with:
-        path: vendor/bundle
-        key: ${{ runner.os }}-gems-${{ matrix.ruby-version }}-${{ hashFiles('**/Gemfile.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-gems-${{ matrix.ruby-version }}-
-
-    - name: Bundle install
-      env:
-        BUNDLE_DEPLOYMENT: false
-      run: bundle install --jobs 4 --retry 3 --path vendor/bundle
+        bundler-cache: true
 
     - name: Debug bundle info
       run: |
@@ -87,23 +66,7 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.3'
-        bundler-cache: false
-
-    - name: Install Bundler
-      run: gem install bundler -v '2.7.2'
-
-    - name: Cache bundle
-      uses: actions/cache@v4
-      with:
-        path: vendor/bundle
-        key: ${{ runner.os }}-gems-3.3-${{ hashFiles('**/Gemfile.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-gems-3.3-
-
-    - name: Bundle install
-      env:
-        BUNDLE_DEPLOYMENT: false
-      run: bundle install --jobs 4 --retry 3 --path vendor/bundle
+        bundler-cache: true
 
     - name: Run bundle audit
       run: |
@@ -119,23 +82,7 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.3'
-        bundler-cache: false
-
-    - name: Install Bundler
-      run: gem install bundler -v '2.7.2'
-
-    - name: Cache bundle
-      uses: actions/cache@v4
-      with:
-        path: vendor/bundle
-        key: ${{ runner.os }}-gems-3.3-${{ hashFiles('**/Gemfile.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-gems-3.3-
-
-    - name: Bundle install
-      env:
-        BUNDLE_DEPLOYMENT: false
-      run: bundle install --jobs 4 --retry 3 --path vendor/bundle
+        bundler-cache: true
 
     - name: Lint with RuboCop
       run: bundle exec rubocop

@@ -100,6 +100,13 @@ RSpec.describe Lotus::Environment do
         expect(env.space).to eq('dev')
       end
     end
+
+    context 'when cluster is provided' do
+      it 'returns nil for space' do
+        env = Lotus::Environment.new('prod-s5', cluster: 'my-cluster')
+        expect(env.space).to be_nil
+      end
+    end
   end
 
   describe '#region' do
@@ -133,6 +140,13 @@ RSpec.describe Lotus::Environment do
 
       it 'returns nil for numbers outside defined ranges' do
         env = Lotus::Environment.new('prod-s300')
+        expect(env.region).to be_nil
+      end
+    end
+
+    context 'when cluster is provided' do
+      it 'returns nil for region' do
+        env = Lotus::Environment.new('prod-s5', cluster: 'my-cluster')
         expect(env.region).to be_nil
       end
     end

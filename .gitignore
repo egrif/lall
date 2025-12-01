@@ -22,3 +22,4 @@ pry_history
 Thumbs.db
 
 spec/examples.txt
+Gemfile.lock

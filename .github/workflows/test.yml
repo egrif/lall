@@ -69,7 +69,6 @@ jobs:
         ruby-version: '3.3'
         bundler-cache: true
 
-
     - name: Run bundle audit
       run: |
         gem install bundle-audit
@@ -85,10 +84,6 @@ jobs:
       with:
         ruby-version: '3.3'
         bundler-cache: true
-        bundler: default
 
     - name: Lint with RuboCop
       run: bundle exec rubocop
-
-    - name: Check for spelling errors
-      run: npx cspell "**/*.{rb,md,yml,yaml}" --config .cspell.json

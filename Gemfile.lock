@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    lall (0.17.0)
+    lall (0.17.1)
       base64 (~> 0.2)
       csv
       digest (~> 3.1)

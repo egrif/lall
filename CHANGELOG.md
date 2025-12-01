@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.1] - 2025-12-01
+
+### Fixed
+- **Cluster Override for Group Resolution**: Fixed incorrect space/region defaults when `--cluster` is provided
+  - Environment space and region now return `nil` when cluster is set, preventing incorrect default fallbacks
+  - Groups created from environments now properly inherit cluster information from parent environment
+  - Resolves issue where cluster-based lookups would incorrectly fall back to `dev` space causing invalid group paths
+  - Ensures lotus commands use consistent cluster context throughout entity hierarchy
+
 ## [0.17.0] - 2025-10-27
 
 ### Added

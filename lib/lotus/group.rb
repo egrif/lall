@@ -12,8 +12,8 @@ module Lotus
 
     # Implement abstract methods from Entity
     def lotus_cmd
-      if @cluster
-        "lotus view --cluster #{@cluster} -a #{@application} -g #{@name}"
+      if cluster
+        "lotus view --cluster #{cluster} -a #{application} -g #{name}"
       else
         "lotus view -s #{space} -r #{region} -a #{application} -g #{name}"
       end
